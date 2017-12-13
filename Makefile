@@ -2,7 +2,10 @@ CPP=clang++
 CFLAGS=-std=c++14 -g -I./include
 LIBS=-pthreads
 PROGRAMS=test1 test2 test3 baseline
-OPT=-O3
+PROGRAM=baseline
+PROFILER=/usr/bin/time taskset -c 1
+OPT=-O3 -fno-inline
+INPUTS=1000000000 0 14
 
 all: $(PROGRAMS)
 
@@ -21,7 +24,10 @@ baseline: baseline.o
 %.o: %.cpp
 	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
 
+run: $(PROGRAM)
+	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
+
 clean:
 	rm -f *.o $(PROGRAMS)
 
-.PHONY: clean
+.PHONY: clean run

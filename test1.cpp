@@ -11,12 +11,12 @@ int main (int argc, char *argv[]){
    * Fetch the inputs.
    */
   if (argc < 4){
-    std::cerr << "USAGE: " << argv[0] << " THREADS TASKS ITERS_PER_TASK" << std::endl;
+    std::cerr << "USAGE: " << argv[0] << " TASKS ITERS_PER_TASK THREADS" << std::endl;
     return 1;
   }
-  auto threads = atoi(argv[1]);
-  auto tasks = atoi(argv[2]);
-  auto iters = atoi(argv[3]);
+  auto tasks = atoi(argv[1]);
+  auto iters = atoi(argv[2]);
+  auto threads = atoi(argv[3]);
 
   /*
    * Create a thread pool.
