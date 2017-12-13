@@ -87,6 +87,10 @@ namespace MARC {
       TaskFuture& operator=(TaskFuture&& other) = default;
 
       ~TaskFuture(void) {
+
+        /*
+         * Check if we have a result to wait.
+         */
         if(!m_future.valid()) {
           return ;
         }
@@ -95,6 +99,7 @@ namespace MARC {
          * Wait for the result.
          */
         m_future.get();
+
         return ;
       }
 
@@ -161,7 +166,7 @@ namespace MARC {
      * Submit a job to be run by the thread pool.
      */
     template <typename Func, typename... Args>
-    auto submit(Func&& func, Args&&... args) {
+    auto submit (Func&& func, Args&&... args) {
 
       /*
        * Making the task.
@@ -252,5 +257,6 @@ namespace MARC {
     std::atomic_bool m_done;
     ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
     std::vector<std::thread> m_threads;
+
   };
- }
+}
