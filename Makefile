@@ -4,7 +4,9 @@ LIBS=-pthreads
 PROGRAMS=test1 test2 test3 baseline
 PROGRAM=baseline
 PROFILER=/usr/bin/time taskset -c 1
-OPT=-O3 -fno-inline
+PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
+PROFILER_SHOW=perf report --stdio
+OPT=-O3 -fno-inline -fno-omit-frame-pointer
 INPUTS=1000000000 0 14
 
 all: $(PROGRAMS)
@@ -28,6 +30,6 @@ run: $(PROGRAM)
 	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
 
 clean:
-	rm -f *.o $(PROGRAMS)
+	rm -f *.o $(PROGRAMS) perf.*
 
 .PHONY: clean run
