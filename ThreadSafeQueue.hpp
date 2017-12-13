@@ -23,7 +23,7 @@ namespace MARC {
       invalidate();
     }
 
-    /**
+    /*
      * Attempt to get the first value in the queue.
      * Returns true if a value was successfully written to the out parameter, false otherwise.
      */
@@ -39,12 +39,12 @@ namespace MARC {
       return true;
     }
 
-    /**
+    /*
      * Get the first value in the queue.
      * Will block until a value is available unless clear is called or the instance is destructed.
      * Returns true if a value was successfully written to the out parameter, false otherwise.
      */
-    bool waitPop(T& out) {
+    bool waitPop (T& out) {
       std::unique_lock<std::mutex> lock{m_mutex};
 
       m_condition.wait(lock, 
@@ -90,7 +90,7 @@ namespace MARC {
     /*
      * Clear all items from the queue.
      */
-    void clear(void) {
+    void clear (void) {
       std::lock_guard<std::mutex> lock{m_mutex};
       while(!m_queue.empty()) {
         m_queue.pop();
