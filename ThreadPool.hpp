@@ -19,8 +19,13 @@
 
 namespace MARC
 {
+
+    /*
+     * Thread pool.
+     */
     class ThreadPool
     {
+
     private:
         class IThreadTask
         {
@@ -102,8 +107,9 @@ namespace MARC
         };
 
     public:
+
         /**
-         * Constructor.
+         * Default constructor.
          */
         ThreadPool(void)
             :ThreadPool{std::max(std::thread::hardware_concurrency(), 2u) - 1u}
@@ -125,8 +131,7 @@ namespace MARC
         {
             try
             {
-                for(std::uint32_t i = 0u; i < numThreads; ++i)
-                {
+                for(auto i = 0u; i < numThreads; ++i) {
                     m_threads.emplace_back(&ThreadPool::worker, this);
                 }
             }
@@ -183,7 +188,7 @@ namespace MARC
                 std::unique_ptr<IThreadTask> pTask{nullptr};
                 if(m_workQueue.waitPop(pTask))
                 {
-                    pTask->execute();
+                  pTask->execute();
                 }
             }
         }
