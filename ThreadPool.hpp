@@ -162,15 +162,50 @@ namespace MARC {
      */
     template <typename Func, typename... Args>
     auto submit(Func&& func, Args&&... args) {
+
+      /*
+       * Making the task.
+       */
       auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
       using ResultType = std::result_of_t<decltype(boundTask)()>;
       using PackagedTask = std::packaged_task<ResultType()>;
       using TaskType = ThreadTask<PackagedTask>;
-      
       PackagedTask task{std::move(boundTask)};
+
+      /*
+       * Create the future.
+       */
       TaskFuture<ResultType> result{task.get_future()};
+      
+      /*
+       * Submit the task.
+       */
       m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+    
       return result;
+    }
+
+    /*
+     * Submit a job to be run by the thread pool and detach it from the caller.
+     */
+    template <typename Func, typename... Args>
+    void submitAndDetach (Func&& func, Args&&... args) {
+
+      /*
+       * Making the task.
+       */
+      auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+      using ResultType = std::result_of_t<decltype(boundTask)()>;
+      using PackagedTask = std::packaged_task<ResultType()>;
+      using TaskType = ThreadTask<PackagedTask>;
+      PackagedTask task{std::move(boundTask)};
+
+      /*
+       * Submit the task.
+       */
+      m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+      return ;
     }
 
   private:
