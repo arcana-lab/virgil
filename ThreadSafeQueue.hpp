@@ -10,7 +10,7 @@
 #include <queue>
 #include <utility>
 
-namespace MyNamespace
+namespace MARC
 {
     template <typename T>
     class ThreadSafeQueue

@@ -1,11 +1,12 @@
 CPP=clang++
 OBJS=test.o
 CFLAGS=-std=c++14
+LIBS=-pthreads
 
 all: test
 
 test: $(OBJS)
-	$(CPP) $^ -o $@
+	$(CPP) $(LIBS) $^ -o $@
 
 %.o: %.cpp
 	$(CPP) $(CFLAGS) -c $^ -o $@
