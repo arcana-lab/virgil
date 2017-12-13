@@ -1,19 +1,23 @@
 #include <iostream>
 #include <vector>
+#include <math.h>
 
 #include "ThreadPool.hpp"
 
-void myF (void){
-  std::cerr << "RUNNING myF" << std::endl;
-  while (true){
-
+double myF (std::int64_t iters){
+  double v = static_cast<double>(iters);
+  for (auto i=0; i < iters; i++){
+    for (auto i=0; i < iters; i++){
+      for (auto i=0; i < iters; i++){
+        v = sqrt(v);
+      }
+    }
   }
 
-  return ;
+  return v;
 }
 
-int main (){
-  std::cerr << "Start" << std::endl;
+int main (int argc, char *argv[]){
 
   /*
    * Create a thread pool.
@@ -23,10 +27,11 @@ int main (){
   /*
    * Submit jobs.
    */
-  std::vector<MARC::ThreadPool::TaskFuture<void>> results;
+  std::cerr << "Start" << std::endl;
+  std::vector<MARC::ThreadPool::TaskFuture<double>> results;
   for (auto i=0; i < 10; i++){
     std::cerr << "Submitting a job" << std::endl;
-    results.push_back(pool.submit(myF));
+    results.push_back(pool.submit(myF, 100));
   }
 
   /*
@@ -36,7 +41,7 @@ int main (){
     std::cerr << "Wait for the job to be over" << std::endl;
     result.get();
   }
-  
   std::cerr << "Exit" << std::endl;
+  
   return 0;
 }
