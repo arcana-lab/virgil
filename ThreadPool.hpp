@@ -124,48 +124,44 @@ namespace MARC
         /**
          * Constructor.
          */
-        explicit ThreadPool(const std::uint32_t numThreads)
-            :m_done{false},
-            m_workQueue{},
-            m_threads{}
+        explicit ThreadPool (const std::uint32_t numThreads)
+          :
+          m_done{false},
+          m_workQueue{},
+          m_threads{}
         {
-            try
-            {
-                for(auto i = 0u; i < numThreads; ++i) {
-                    m_threads.emplace_back(&ThreadPool::worker, this);
-                }
+          try {
+            for(auto i = 0u; i < numThreads; ++i) {
+              m_threads.emplace_back(&ThreadPool::worker, this);
             }
-            catch(...)
-            {
-                destroy();
-                throw;
-            }
+          } catch(...) {
+            destroy();
+            throw;
+          }
         }
 
-        /**
+        /*
          * Non-copyable.
          */
         ThreadPool(const ThreadPool& rhs) = delete;
 
-        /**
+        /*
          * Non-assignable.
          */
         ThreadPool& operator=(const ThreadPool& rhs) = delete;
 
-        /**
+        /*
          * Destructor.
          */
-        ~ThreadPool(void)
-        {
-            destroy();
+        ~ThreadPool(void) {
+          destroy();
         }
 
-        /**
+        /*
          * Submit a job to be run by the thread pool.
          */
         template <typename Func, typename... Args>
-        auto submit(Func&& func, Args&&... args)
-        {
+        auto submit(Func&& func, Args&&... args) {
             auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
             using ResultType = std::result_of_t<decltype(boundTask)()>;
             using PackagedTask = std::packaged_task<ResultType()>;
@@ -178,35 +174,41 @@ namespace MARC
         }
 
     private:
-        /**
+
+        /*
          * Constantly running function each thread uses to acquire work items from the queue.
          */
-        void worker(void)
-        {
-            while(!m_done)
-            {
-                std::unique_ptr<IThreadTask> pTask{nullptr};
-                if(m_workQueue.waitPop(pTask))
-                {
-                  pTask->execute();
-                }
+        void worker(void) {
+          while(!m_done) {
+            std::unique_ptr<IThreadTask> pTask{nullptr};
+            if(m_workQueue.waitPop(pTask)) {
+              pTask->execute();
             }
+          }
         }
 
-        /**
+        /*
          * Invalidates the queue and joins all running threads.
          */
-        void destroy(void)
-        {
-            m_done = true;
-            m_workQueue.invalidate();
-            for(auto& thread : m_threads)
-            {
-                if(thread.joinable())
-                {
-                    thread.join();
-                }
+        void destroy(void) {
+
+          /*
+           * Signal threads to quite.
+           */
+          m_done = true;
+          m_workQueue.invalidate();
+
+          /*
+           * Join threads.
+           */
+          for(auto& thread : m_threads) {
+            if(!thread.joinable()) {
+              continue ;
             }
+            thread.join();
+          }
+
+          return ;
         }
 
     private:
