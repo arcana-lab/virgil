@@ -1,19 +1,21 @@
 CPP=clang++
-CFLAGS=-std=c++14
+CFLAGS=-std=c++14 -g
 LIBS=-pthreads
+PROGRAMS=test1 test2
+OPT=-O3
 
-all: test1 test2
+all: $(PROGRAMS)
 
 test1: test1.o
-	$(CPP) $(LIBS) $^ -o $@
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 test2: test2.o
-	$(CPP) $(LIBS) $^ -o $@
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 %.o: %.cpp
-	$(CPP) $(CFLAGS) -c $^ -o $@
+	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
 
 clean:
-	rm -f *.o test1 test2
+	rm -f *.o $(PROGRAMS)
 
 .PHONY: clean
