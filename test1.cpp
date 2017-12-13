@@ -3,45 +3,33 @@
 #include <math.h>
 
 #include "ThreadPool.hpp"
-
-double myF (std::int64_t iters){
-  double v = static_cast<double>(iters);
-  for (auto i=0; i < iters; i++){
-    for (auto i=0; i < iters; i++){
-      for (auto i=0; i < iters; i++){
-        v = sqrt(v);
-      }
-    }
-  }
-
-  return v;
-}
+#include "work.hpp"
 
 int main (int argc, char *argv[]){
 
   /*
+   * Fetch the inputs.
+   */
+  if (argc < 4){
+    std::cerr << "USAGE: " << argv[0] << " THREADS TASKS ITERS_PER_TASK" << std::endl;
+    return 1;
+  }
+  auto threads = atoi(argv[1]);
+  auto tasks = atoi(argv[2]);
+  auto iters = atoi(argv[3]);
+
+  /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool(10);
+  MARC::ThreadPool pool(threads);
 
   /*
    * Submit jobs.
    */
-  std::cerr << "Start" << std::endl;
   std::vector<MARC::ThreadPool::TaskFuture<double>> results;
-  for (auto i=0; i < 10; i++){
-    std::cerr << "Submitting a job" << std::endl;
-    results.push_back(pool.submit(myF, 100));
+  for (auto i=0; i < tasks; i++){
+    results.push_back(pool.submit(myF, iters));
   }
 
-  /*
-   * Wait.
-   */
-  for (auto& result : results){
-    std::cerr << "Wait for the job to be over" << std::endl;
-    result.get();
-  }
-  std::cerr << "Exit" << std::endl;
-  
   return 0;
 }

@@ -27,7 +27,7 @@ int main (int argc, char *argv[]){
    * Submit jobs.
    */
   for (auto i=0; i < tasks; i++){
-    pool.submitAndDetach(myF, iters);
+    pool.submit(myF, iters);
   }
 
   return 0;
