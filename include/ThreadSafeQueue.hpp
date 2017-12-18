@@ -33,8 +33,7 @@ namespace MARC {
         return false;
       }
 
-      out = std::move(m_queue.front());
-      m_queue.pop();
+      internal_pop(out);
 
       return true;
     }
@@ -47,7 +46,7 @@ namespace MARC {
     bool waitPop (T& out) {
       std::unique_lock<std::mutex> lock{m_mutex};
 
-      m_condition.wait(lock, 
+      empty_condition.wait(lock, 
         [this]()
         {
           return !m_queue.empty() || !m_valid;
@@ -62,8 +61,7 @@ namespace MARC {
         return false;
       }
 
-      out = std::move(m_queue.front());
-      m_queue.pop();
+      internal_pop(out);
 
       return true;
     }
@@ -73,10 +71,36 @@ namespace MARC {
      */
     void push (T value) {
       std::lock_guard<std::mutex> lock{m_mutex};
-      m_queue.push(std::move(value));
-      m_condition.notify_one();
+      internal_push(value);
 
       return ;
+    }
+
+    /*
+     * Push a new value onto the queue if the queue size is less than maxSize.
+     * Otherwise, wait for it to happen and then push the new value.
+     */
+    bool waitPush (T value, size_t maxSize) {
+      std::unique_lock<std::mutex> lock{m_mutex};
+
+      full_condition.wait(lock, 
+        [this, maxSize]()
+        {
+          return (m_queue.size() < maxSize) || !m_valid;
+        }
+      );
+
+      /*
+       * Using the condition in the predicate ensures that spurious wakeups with a valid
+       * but empty queue will not proceed, so only need to check for validity before proceeding.
+       */
+      if(!m_valid) {
+        return false;
+      }
+
+      internal_push(value);
+
+      return true;
     }
 
     /*
@@ -88,6 +112,14 @@ namespace MARC {
     }
 
     /*
+     * Return the number of elements in the queue.
+     */
+    size_t size (void){
+      std::lock_guard<std::mutex> lock{m_mutex};
+      return m_queue.size();
+    }
+
+    /*
      * Clear all items from the queue.
      */
     void clear (void) {
@@ -95,7 +127,7 @@ namespace MARC {
       while(!m_queue.empty()) {
         m_queue.pop();
       }
-      m_condition.notify_all();
+      full_condition.notify_all();
 
       return ;
     }
@@ -110,7 +142,8 @@ namespace MARC {
     void invalidate(void) {
       std::lock_guard<std::mutex> lock{m_mutex};
       m_valid = false;
-      m_condition.notify_all();
+      empty_condition.notify_all();
+      full_condition.notify_all();
 
       return ;
     }
@@ -127,6 +160,47 @@ namespace MARC {
     std::atomic_bool m_valid{true};
     mutable std::mutex m_mutex;
     std::queue<T> m_queue;
-    std::condition_variable m_condition;
+    std::condition_variable empty_condition;
+    std::condition_variable full_condition;
+
+    void internal_push (T& value);
+    void internal_pop (T& out);
   };
+}
+    
+template <typename T>
+void MARC::ThreadSafeQueue<T>::internal_push (T& value){
+
+  /*
+   * Push the value to the queue.
+   */
+  m_queue.push(std::move(value));
+
+  /*
+   * Notify that the queue is not empty.
+   */
+  empty_condition.notify_one();
+
+  return ;
+}
+
+template <typename T>
+void MARC::ThreadSafeQueue<T>::internal_pop (T& out){
+
+  /*
+   * Fetch the element on top of the queue.
+   */
+  out = std::move(m_queue.front());
+
+  /*
+   * Pop the top element from the queue.
+   */
+  this->m_queue.pop();
+
+  /*
+   * Notify about the fact that the queue might be not full now.
+   */
+  full_condition.notify_one();
+
+  return ;
 }
