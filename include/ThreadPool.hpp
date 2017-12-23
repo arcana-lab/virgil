@@ -16,6 +16,7 @@
 
 #include "ThreadSafeQueue.hpp"
 
+#include <unistd.h>
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
@@ -146,9 +147,22 @@ namespace MARC {
       m_threads{}
     {
       try {
+
+        /*
+         * Initialize the per-thread flags.
+         */
+        this->threadAvailability = new std::atomic_bool[numThreads];
         for(auto i = 0u; i < numThreads; ++i) {
-          m_threads.emplace_back(&ThreadPool::worker, this);
+          this->threadAvailability[i] = true;
         }
+
+        /*
+         * Start threads.
+         */
+        for(auto i = 0u; i < numThreads; ++i) {
+          m_threads.emplace_back(&ThreadPool::worker, this, &(this->threadAvailability[i]));
+        }
+
       } catch(...) {
         destroy();
         throw;
@@ -170,6 +184,8 @@ namespace MARC {
      */
     ~ThreadPool(void) {
       destroy();
+
+      return ;
     }
 
     /*
@@ -223,15 +239,29 @@ namespace MARC {
       return ;
     }
 
+    std::uint32_t numberOfThreadsIdle (void) const {
+      std::uint32_t n = 0;
+
+      for (auto i=0; i < this->m_threads.size(); i++){
+        if (this->threadAvailability[i]){
+          n++;
+        }
+      }
+
+      return n;
+    }
+
   private:
 
     /*
      * Constantly running function each thread uses to acquire work items from the queue.
      */
-    void worker(void) {
+    void worker (std::atomic_bool && availability){
       while(!m_done) {
+        availability = true;
         std::unique_ptr<IThreadTask> pTask{nullptr};
         if(m_workQueue.waitPop(pTask)) {
+          availability = false;
           pTask->execute();
         }
       }
@@ -259,6 +289,7 @@ namespace MARC {
         }
         thread.join();
       }
+      delete[] this->threadAvailability;
 
       return ;
     }
@@ -267,6 +298,7 @@ namespace MARC {
     std::atomic_bool m_done;
     ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
     std::vector<std::thread> m_threads;
+    std::atomic_bool *threadAvailability;
 
   };
 }
