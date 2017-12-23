@@ -84,6 +84,23 @@ namespace MARC {
      */
     ~ThreadSafeQueue(void);
 
+    /*
+     * Default constructor.
+     */
+    ThreadSafeQueue (void) = default;
+
+    /*
+     * Not copyable.
+     */
+    ThreadSafeQueue (const ThreadSafeQueue & other) = delete;
+    ThreadSafeQueue & operator= (const ThreadSafeQueue & other) = delete;
+
+    /*
+     * Not assignable.
+     */
+    ThreadSafeQueue (const ThreadSafeQueue && other) = delete;
+    ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
+
   private:
     std::atomic_bool m_valid{true};
     mutable std::mutex m_mutex;
