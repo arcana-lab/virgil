@@ -24,92 +24,92 @@ namespace MARC {
 
   template <typename T>
   class ThreadSafeQueue{
-  public:
+    public:
 
-    /*
-     * Attempt to get the first value in the queue.
-     * Returns true if a value was successfully written to the out parameter, false otherwise.
-     */
-    bool tryPop (T& out);
+      /*
+       * Attempt to get the first value in the queue.
+       * Returns true if a value was successfully written to the out parameter, false otherwise.
+       */
+      bool tryPop (T& out);
 
-    /*
-     * Get the first value in the queue.
-     * Will block until a value is available unless clear is called or the instance is destructed.
-     * Returns true if a value was successfully written to the out parameter, false otherwise.
-     */
-    bool waitPop (T& out);
+      /*
+       * Get the first value in the queue.
+       * Will block until a value is available unless clear is called or the instance is destructed.
+       * Returns true if a value was successfully written to the out parameter, false otherwise.
+       */
+      bool waitPop (T& out);
 
-    /*
-     * Push a new value onto the queue.
-     */
-    void push (T value);
+      /*
+       * Push a new value onto the queue.
+       */
+      void push (T value);
 
-    /*
-     * Push a new value onto the queue if the queue size is less than maxSize.
-     * Otherwise, wait for it to happen and then push the new value.
-     */
-    bool waitPush (T value, int64_t maxSize);
+      /*
+       * Push a new value onto the queue if the queue size is less than maxSize.
+       * Otherwise, wait for it to happen and then push the new value.
+       */
+      bool waitPush (T value, int64_t maxSize);
 
-    /*
-     * Clear all items from the queue.
-     */
-    void clear (void);
+      /*
+       * Clear all items from the queue.
+       */
+      void clear (void);
 
-    /*
-     * Invalidate the queue.
-     * Used to ensure no conditions are being waited on in waitPop when
-     * a thread or the application is trying to exit.
-     * The queue is invalid after calling this method and it is an error
-     * to continue using a queue after this method has been called.
-     */
-    void invalidate(void);
+      /*
+       * Invalidate the queue.
+       * Used to ensure no conditions are being waited on in waitPop when
+       * a thread or the application is trying to exit.
+       * The queue is invalid after calling this method and it is an error
+       * to continue using a queue after this method has been called.
+       */
+      void invalidate(void);
 
-    /*
-     * Check whether or not the queue is empty.
-     */
-    bool empty (void) const;
+      /*
+       * Check whether or not the queue is empty.
+       */
+      bool empty (void) const;
 
-    /*
-     * Return the number of elements in the queue.
-     */
-    int64_t size (void) const;
+      /*
+       * Return the number of elements in the queue.
+       */
+      int64_t size (void) const;
 
-    /*
-     * Returns whether or not this queue is valid.
-     */
-    bool isValid(void) const;
-    
-    /*
-     * Destructor.
-     */
-    ~ThreadSafeQueue(void);
+      /*
+       * Returns whether or not this queue is valid.
+       */
+      bool isValid(void) const;
+      
+      /*
+       * Destructor.
+       */
+      ~ThreadSafeQueue(void);
 
-    /*
-     * Default constructor.
-     */
-    ThreadSafeQueue (void) = default;
+      /*
+       * Default constructor.
+       */
+      ThreadSafeQueue (void) = default;
 
-    /*
-     * Not copyable.
-     */
-    ThreadSafeQueue (const ThreadSafeQueue & other) = delete;
-    ThreadSafeQueue & operator= (const ThreadSafeQueue & other) = delete;
+      /*
+       * Not copyable.
+       */
+      ThreadSafeQueue (const ThreadSafeQueue & other) = delete;
+      ThreadSafeQueue & operator= (const ThreadSafeQueue & other) = delete;
 
-    /*
-     * Not assignable.
-     */
-    ThreadSafeQueue (const ThreadSafeQueue && other) = delete;
-    ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
+      /*
+       * Not assignable.
+       */
+      ThreadSafeQueue (const ThreadSafeQueue && other) = delete;
+      ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
 
-  private:
-    std::atomic_bool m_valid{true};
-    mutable std::mutex m_mutex;
-    std::queue<T> m_queue;
-    std::condition_variable empty_condition;
-    std::condition_variable full_condition;
+    private:
+      std::atomic_bool m_valid{true};
+      mutable std::mutex m_mutex;
+      std::queue<T> m_queue;
+      std::condition_variable empty_condition;
+      std::condition_variable full_condition;
 
-    void internal_push (T& value);
-    void internal_pop (T& out);
+      void internal_push (T& value);
+      void internal_pop (T& out);
   };
 }
 
@@ -209,6 +209,17 @@ void MARC::ThreadSafeQueue<T>::clear (void) {
 template <typename T>
 void MARC::ThreadSafeQueue<T>::invalidate (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
+
+  /*
+   * Check if the queue has been already invalidated.
+   */
+  if (!m_valid){
+    return ;
+  }
+
+  /*
+   * Invalidate the queue.
+   */
   m_valid = false;
   empty_condition.notify_all();
   full_condition.notify_all();
