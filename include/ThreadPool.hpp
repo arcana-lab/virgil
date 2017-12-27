@@ -106,50 +106,50 @@ namespace MARC {
    * Thread pool.
    */
   class ThreadPool {
-  public:
-
-    /*
-     * A wrapper around a std::future that adds the behavior of futures returned from std::async.
-     * Specifically, this object will block and wait for execution to finish before going out of scope.
-     */
-    template <typename T>
-    class TaskFuture {
     public:
-      TaskFuture(std::future<T>&& future)
-        :m_future{std::move(future)}
-        {
-        return ;
-      }
 
-      TaskFuture(const TaskFuture& rhs) = delete;
-      TaskFuture& operator=(const TaskFuture& rhs) = delete;
-      TaskFuture(TaskFuture&& other) = default;
-      TaskFuture& operator=(TaskFuture&& other) = default;
-
-      ~TaskFuture(void) {
-
-        /*
-         * Check if we have a result to wait.
-         */
-        if(!m_future.valid()) {
+      /*
+       * A wrapper around a std::future that adds the behavior of futures returned from std::async.
+       * Specifically, this object will block and wait for execution to finish before going out of scope.
+       */
+      template <typename T>
+      class TaskFuture {
+      public:
+        TaskFuture(std::future<T>&& future)
+          :m_future{std::move(future)}
+          {
           return ;
         }
 
-        /*
-         * Wait for the result.
-         */
-        m_future.get();
+        TaskFuture(const TaskFuture& rhs) = delete;
+        TaskFuture& operator=(const TaskFuture& rhs) = delete;
+        TaskFuture(TaskFuture&& other) = default;
+        TaskFuture& operator=(TaskFuture&& other) = default;
 
-        return ;
-      }
+        ~TaskFuture(void) {
 
-      auto get(void) {
-        return m_future.get();
-      }
+          /*
+           * Check if we have a result to wait.
+           */
+          if(!m_future.valid()) {
+            return ;
+          }
 
-    private:
-      std::future<T> m_future;
-    };
+          /*
+           * Wait for the result.
+           */
+          m_future.get();
+
+          return ;
+        }
+
+        auto get(void) {
+          return m_future.get();
+        }
+
+      private:
+        std::future<T> m_future;
+      };
 
   public:
 
@@ -273,7 +273,7 @@ namespace MARC {
      */
     template <typename Func, typename... Args>
     auto submitToAlternativeQueueIfNecessary (
-      std::function<bool ()> submitToAlternativeQueue,
+      std::function<bool (void)> submitToAlternativeQueue,
       ThreadSafeQueue<std::unique_ptr<IThreadTask>> &alternativeQueue,
       Func&& func, 
       Args&&... args
@@ -292,14 +292,22 @@ namespace MARC {
        * Create the future.
        */
       TaskFuture<ResultType> result{task.get_future()};
-      
+
       /*
-       * Submit the task.
+       * Check if we need to submit the task to an alternative queue.
        */
       if (submitToAlternativeQueue()){
+
+        /*
+         * Submit the task to the alternative queue.
+         */
         alternativeQueue.push(std::make_unique<TaskType>(std::move(task)));
 
       } else {
+
+        /*
+         * Submit the task to our internal queue.
+         */
         m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
       }
     
