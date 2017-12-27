@@ -39,7 +39,7 @@ namespace MARC {
       /*
        * Default constructor.
        */
-      IThreadTask(void) = default;
+      IThreadTask (void) = default;
 
       /*
        * Run the task.
@@ -74,19 +74,19 @@ namespace MARC {
       /*
        * Constructor.
        */
-      ThreadTask(Func&& func);
+      ThreadTask (Func&& func);
 
       /*
        * Default moving operation.
        */
-      ThreadTask(ThreadTask&& other) = default;
-      ThreadTask& operator=(ThreadTask&& other) = default;
+      ThreadTask (ThreadTask&& other) = default;
+      ThreadTask& operator= (ThreadTask&& other) = default;
 
       /*
        * Not copyable.
        */
-      ThreadTask(const ThreadTask& rhs) = delete;
-      ThreadTask& operator=(const ThreadTask& rhs) = delete;
+      ThreadTask (const ThreadTask& rhs) = delete;
+      ThreadTask& operator= (const ThreadTask& rhs) = delete;
 
       /*
        * Default deconstructor.
@@ -268,52 +268,6 @@ namespace MARC {
       return ;
     }
 
-    /*
-     * Submit a job to the normal queue or to an alternative one.
-     */
-    template <typename Func, typename... Args>
-    auto submitToAlternativeQueueIfNecessary (
-      std::function<bool (void)> submitToAlternativeQueue,
-      ThreadSafeQueue<std::unique_ptr<IThreadTask>> &alternativeQueue,
-      Func&& func, 
-      Args&&... args
-      ) {
-
-      /*
-       * Making the task.
-       */
-      auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-      using ResultType = std::result_of_t<decltype(boundTask)()>;
-      using PackagedTask = std::packaged_task<ResultType()>;
-      using TaskType = ThreadTask<PackagedTask>;
-      PackagedTask task{std::move(boundTask)};
-
-      /*
-       * Create the future.
-       */
-      TaskFuture<ResultType> result{task.get_future()};
-
-      /*
-       * Check if we need to submit the task to an alternative queue.
-       */
-      if (submitToAlternativeQueue()){
-
-        /*
-         * Submit the task to the alternative queue.
-         */
-        alternativeQueue.push(std::make_unique<TaskType>(std::move(task)));
-
-      } else {
-
-        /*
-         * Submit the task to our internal queue.
-         */
-        m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
-      }
-    
-      return result;
-    }
-
     std::uint32_t numberOfIdleThreads (void) const {
       std::uint32_t n = 0;
 
@@ -386,7 +340,7 @@ namespace MARC {
  * Thread task
  */
 template <typename Func>
-MARC::ThreadTask<Func>::ThreadTask(Func&& func)
+MARC::ThreadTask<Func>::ThreadTask (Func&& func)
   :m_func{std::move(func)}
   {
   return ;
