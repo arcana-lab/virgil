@@ -31,43 +31,59 @@
 namespace MARC {
 
   /*
-   * Thread pool.
+   * Thread task interface.
    */
-  class ThreadPool {
-
-  private:
-
-    class IThreadTask {
-
+  class IThreadTask {
     public:
+
+      /*
+       * Default constructor.
+       */
       IThreadTask(void) = default;
-      virtual ~IThreadTask(void) = default;
-      IThreadTask(const IThreadTask& rhs) = delete;
-      IThreadTask& operator=(const IThreadTask& rhs) = delete;
-      IThreadTask(IThreadTask&& other) = default;
-      IThreadTask& operator=(IThreadTask&& other) = default;
 
       /*
        * Run the task.
        */
       virtual void execute() = 0;
-    };
 
-    template <typename Func>
-    class ThreadTask: public IThreadTask {
+      /*
+       * Default moving operation.
+       */
+      IThreadTask(IThreadTask&& other) = default;
+      IThreadTask& operator=(IThreadTask&& other) = default;
+
+      /*
+       * Not copyable.
+       */
+      IThreadTask(const IThreadTask& rhs) = delete;
+      IThreadTask& operator=(const IThreadTask& rhs) = delete;
+
+      /*
+       * Default deconstructor.
+       */
+      virtual ~IThreadTask(void) = default;
+  };
+
+  /*
+   * An implementation of the thread task interface.
+   */
+  template <typename Func>
+  class ThreadTask: public IThreadTask {
     public:
       ThreadTask(Func&& func)
         :m_func{std::move(func)}
-      {
+        {
+        return ;
       }
 
-      ~ThreadTask(void) override = default;
       ThreadTask(const ThreadTask& rhs) = delete;
       ThreadTask& operator=(const ThreadTask& rhs) = delete;
       ThreadTask(ThreadTask&& other) = default;
       ThreadTask& operator=(ThreadTask&& other) = default;
 
-      /**
+      ~ThreadTask(void) override = default;
+
+      /*
        * Run the task.
        */
       void execute() override {
@@ -76,8 +92,12 @@ namespace MARC {
 
     private:
       Func m_func;
-    };
+  };
 
+  /*
+   * Thread pool.
+   */
+  class ThreadPool {
   public:
 
     /*
@@ -89,7 +109,8 @@ namespace MARC {
     public:
       TaskFuture(std::future<T>&& future)
         :m_future{std::move(future)}
-      {
+        {
+        return ;
       }
 
       TaskFuture(const TaskFuture& rhs) = delete;
@@ -239,7 +260,45 @@ namespace MARC {
       return ;
     }
 
-    std::uint32_t numberOfThreadsIdle (void) const {
+    /*
+     * Submit a job to the normal queue or to an alternative one.
+     */
+    template <typename Func, typename... Args>
+    auto submitToAlternativeQueueIfNecessary (
+      std::function<bool ()> submitToAlternativeQueue,
+      ThreadSafeQueue<std::unique_ptr<IThreadTask>> &alternativeQueue,
+      Func&& func, 
+      Args&&... args
+      ) {
+
+      /*
+       * Making the task.
+       */
+      auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+      using ResultType = std::result_of_t<decltype(boundTask)()>;
+      using PackagedTask = std::packaged_task<ResultType()>;
+      using TaskType = ThreadTask<PackagedTask>;
+      PackagedTask task{std::move(boundTask)};
+
+      /*
+       * Create the future.
+       */
+      TaskFuture<ResultType> result{task.get_future()};
+      
+      /*
+       * Submit the task.
+       */
+      if (submitToAlternativeQueue()){
+        alternativeQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+      } else {
+        m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+      }
+    
+      return result;
+    }
+
+    std::uint32_t numberOfIdleThreads (void) const {
       std::uint32_t n = 0;
 
       for (auto i=0; i < this->m_threads.size(); i++){
@@ -251,17 +310,21 @@ namespace MARC {
       return n;
     }
 
+    std::uint64_t numberOfTasksWaitingToBeProcessed (void) const {
+      return this->m_workQueue.size();
+    }
+
   private:
 
     /*
      * Constantly running function each thread uses to acquire work items from the queue.
      */
-    void worker (std::atomic_bool && availability){
+    void worker (std::atomic_bool *availability){
       while(!m_done) {
-        availability = true;
+        *availability = true;
         std::unique_ptr<IThreadTask> pTask{nullptr};
         if(m_workQueue.waitPop(pTask)) {
-          availability = false;
+          *availability = false;
           pTask->execute();
         }
       }
