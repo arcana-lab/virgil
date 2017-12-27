@@ -70,25 +70,33 @@ namespace MARC {
   template <typename Func>
   class ThreadTask: public IThreadTask {
     public:
-      ThreadTask(Func&& func)
-        :m_func{std::move(func)}
-        {
-        return ;
-      }
 
-      ThreadTask(const ThreadTask& rhs) = delete;
-      ThreadTask& operator=(const ThreadTask& rhs) = delete;
+      /*
+       * Constructor.
+       */
+      ThreadTask(Func&& func);
+
+      /*
+       * Default moving operation.
+       */
       ThreadTask(ThreadTask&& other) = default;
       ThreadTask& operator=(ThreadTask&& other) = default;
 
+      /*
+       * Not copyable.
+       */
+      ThreadTask(const ThreadTask& rhs) = delete;
+      ThreadTask& operator=(const ThreadTask& rhs) = delete;
+
+      /*
+       * Default deconstructor.
+       */
       ~ThreadTask(void) override = default;
 
       /*
        * Run the task.
        */
-      void execute() override {
-        m_func();
-      }
+      void execute() override ;
 
     private:
       Func m_func;
@@ -364,4 +372,21 @@ namespace MARC {
     std::atomic_bool *threadAvailability;
 
   };
+}
+
+/*
+ * Thread task
+ */
+template <typename Func>
+MARC::ThreadTask<Func>::ThreadTask(Func&& func)
+  :m_func{std::move(func)}
+  {
+  return ;
+}
+
+template <typename Func>
+void MARC::ThreadTask<Func>::execute (void){
+  this->m_func();
+
+  return ;
 }
