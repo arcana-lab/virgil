@@ -1,5 +1,5 @@
 CPP=clang++
-CFLAGS=-std=c++14 -g -I./include
+CFLAGS=-std=c++14 -g -I../../include
 LIBS=-pthreads
 PROGRAMS=test1 test2 test3 baseline
 PROGRAM=baseline

@@ -26,7 +26,7 @@ int main (int argc, char *argv[]){
   /*
    * Submit jobs.
    */
-  std::vector<MARC::ThreadPool::TaskFuture<double>> results;
+  std::vector<MARC::TaskFuture<double>> results;
   for (auto i=0; i < tasks; i++){
     results.push_back(pool.submit(myF, iters));
   }
