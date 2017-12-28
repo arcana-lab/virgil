@@ -79,9 +79,7 @@ template <class ValueType>
 MARC::SequenceOfValues<ValueType>::SequenceOfValues (const MARC::SequenceOfValues<ValueType> & other)
   : MARC::SequenceOfValues<ValueType>::SequenceOfValues(other.numberOfValues)
   {
-  for (auto i=0; i < this->numberOfValues; i++){
-    this->values[i] = other.values[i];
-  }
+  std::copy(other.values, other.values + other.numberOfValues, this->values);
 
   return ;
 }
