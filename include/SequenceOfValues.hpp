@@ -30,14 +30,14 @@ namespace MARC{
       SequenceOfValues& operator= (const SequenceOfValues& other);
 
       /*
+       * Copy constructor.
+       */
+      SequenceOfValues (const SequenceOfValues& other);
+
+      /*
        * Deconstructor.
        */
       ~SequenceOfValues (void);
-
-      /*
-       * No copy constructor.
-       */
-      SequenceOfValues (const SequenceOfValues& other) = delete;
 
       /*
        * Not assignable.
@@ -73,6 +73,17 @@ MARC::SequenceOfValues<ValueType>& MARC::SequenceOfValues<ValueType>::operator= 
   }
 
   return *this;
+}
+
+template <class ValueType>
+MARC::SequenceOfValues<ValueType>::SequenceOfValues (const MARC::SequenceOfValues<ValueType> & other)
+  : MARC::SequenceOfValues<ValueType>::SequenceOfValues(other.numberOfValues)
+  {
+  for (auto i=0; i < this->numberOfValues; i++){
+    this->values[i] = other.values[i];
+  }
+
+  return ;
 }
 
 template <class ValueType>
