@@ -53,7 +53,7 @@ namespace MARC {
       /*
        * Constructor.
        */
-      explicit ThreadPool (const std::uint32_t numThreads)
+      explicit ThreadPool (const std::uint32_t numThreads, std::function <void (void)> codeToExecuteAtDeconstructor = nullptr)
         :
         m_done{false},
         m_workQueue{},
@@ -80,6 +80,16 @@ namespace MARC {
           destroy();
           throw;
         }
+
+        if (codeToExecuteAtDeconstructor != nullptr){
+          this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
+        }
+      }
+
+      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor) {
+        this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
+
+        return ;
       }
 
       /*
@@ -192,6 +202,15 @@ namespace MARC {
       void destroy(void) {
 
         /*
+         * Execute the user code.
+         */
+        while (codeToExecuteByTheDeconstructor.size() > 0){
+          std::function<void ()> code;
+          codeToExecuteByTheDeconstructor.waitPop(code);
+          code();
+        }
+
+        /*
          * Signal threads to quite.
          */
         m_done = true;
@@ -218,6 +237,7 @@ namespace MARC {
       ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
       std::vector<std::thread> m_threads;
       std::atomic_bool *threadAvailability;
+      ThreadSafeQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
   };
 
 }
