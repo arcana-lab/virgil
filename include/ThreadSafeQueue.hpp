@@ -38,6 +38,7 @@ namespace MARC {
        * Returns true if a value was successfully written to the out parameter, false otherwise.
        */
       bool waitPop (T& out);
+      bool waitPop (void);
 
       /*
        * Push a new value onto the queue.
@@ -145,6 +146,56 @@ bool MARC::ThreadSafeQueue<T>::waitPop (T& out){
   }
 
   internal_pop(out);
+
+  return true;
+}
+
+template <typename T>
+bool MARC::ThreadSafeQueue<T>::waitPop (void){
+  std::unique_lock<std::mutex> lock{m_mutex};
+
+  /*
+   * Check if the queue is not valid anymore.
+   */
+  if(!m_valid) {
+    return false;
+  }
+
+  /*
+   * We need to wait until the queue is not empty.
+   *
+   * Check if the queue is empty.
+   */
+  if (m_queue.empty()){
+
+    /*
+     * Wait until the queue will be in a valid state and it will be not empty.
+     */
+    empty_condition.wait(lock, 
+      [this]()
+      {
+        return !m_queue.empty() || !m_valid;
+      }
+    );
+  }
+
+  /*
+   * Using the condition in the predicate ensures that spurious wakeups with a valid
+   * but empty queue will not proceed, so only need to check for validity before proceeding.
+   */
+  if(!m_valid) {
+    return false;
+  }
+
+  /*
+   * Pop the top element from the queue.
+   */
+  this->m_queue.pop();
+
+  /*
+   * Notify about the fact that the queue might be not full now.
+   */
+  this->full_condition.notify_one();
 
   return true;
 }
