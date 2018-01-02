@@ -130,12 +130,30 @@ template <typename T>
 bool MARC::ThreadSafeQueue<T>::waitPop (T& out){
   std::unique_lock<std::mutex> lock{m_mutex};
 
-  empty_condition.wait(lock, 
-    [this]()
-    {
-      return !m_queue.empty() || !m_valid;
-    }
-  );
+  /*
+   * Check if the queue is not valid anymore.
+   */
+  if(!m_valid) {
+    return false;
+  }
+
+  /*
+   * We need to wait until the queue is not empty.
+   *
+   * Check if the queue is empty.
+   */
+  if (m_queue.empty()){
+
+    /*
+     * Wait until the queue will be in a valid state and it will be not empty.
+     */
+    empty_condition.wait(lock, 
+      [this]()
+      {
+        return !m_queue.empty() || !m_valid;
+      }
+    );
+  }
 
   /*
    * Using the condition in the predicate ensures that spurious wakeups with a valid
