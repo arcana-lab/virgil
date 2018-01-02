@@ -22,7 +22,7 @@ namespace MARC{
       /*
        * Constructor.
        */
-      SequenceOfValues (int32_t numberOfElements);
+      SequenceOfValues (uint32_t numberOfElements);
 
       /*
        * Copy operator.
@@ -50,13 +50,13 @@ namespace MARC{
        */
       mutable std::mutex mutex;
       ValueType *values;
-      int32_t numberOfValues;
+      uint32_t numberOfValues;
   };
 
 }
 
 template <class ValueType>
-MARC::SequenceOfValues<ValueType>::SequenceOfValues (int32_t numberOfElements){
+MARC::SequenceOfValues<ValueType>::SequenceOfValues (uint32_t numberOfElements){
   this->numberOfValues = numberOfElements;
   this->values = new ValueType[this->numberOfValues];
 
