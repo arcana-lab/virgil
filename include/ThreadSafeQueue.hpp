@@ -103,12 +103,15 @@ namespace MARC {
       ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
 
     private:
+      std::queue<T> m_queue;
       std::atomic_bool m_valid{true};
       mutable std::mutex m_mutex;
-      std::queue<T> m_queue;
       std::condition_variable empty_condition;
       std::condition_variable full_condition;
 
+      /*
+       * Private methods.
+       */
       void internal_push (T& value);
       void internal_pop (T& out);
   };
