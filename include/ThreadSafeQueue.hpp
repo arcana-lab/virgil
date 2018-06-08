@@ -102,9 +102,11 @@ namespace MARC {
       ThreadSafeQueue (const ThreadSafeQueue && other) = delete;
       ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
 
-    private:
+    protected:
       std::queue<T> m_queue;
       std::atomic_bool m_valid{true};
+
+    private:
       mutable std::mutex m_mutex;
       std::condition_variable empty_condition;
       std::condition_variable full_condition;
@@ -301,8 +303,6 @@ void MARC::ThreadSafeQueue<T>::invalidate (void) {
 
 template <typename T>
 bool MARC::ThreadSafeQueue<T>::isValid (void) const {
-  std::lock_guard<std::mutex> lock{m_mutex};
-    
   return m_valid;
 }
 

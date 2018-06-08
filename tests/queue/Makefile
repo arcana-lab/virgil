@@ -7,7 +7,7 @@ PROFILER_SHOW=perf report --stdio
 OPT=-O3
 INPUTS=100000000
 
-all: work1 work2
+all: work1 work2 work3
 
 work1: work1.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
@@ -15,8 +15,11 @@ work1: work1.o
 work2: work2.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
+work3: work3.o
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
 %.o: %.cpp
-	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
+	$(CPP) $(CFLAGS) $(OPT) -ferror-limit=1 -c $^ -o $@
 
 run1: work1
 	$(PROFILER)  ./$^ $(INPUTS)
@@ -24,7 +27,10 @@ run1: work1
 run2: work2
 	$(PROFILER)  ./$^ $(INPUTS)
 
+run3: work3
+	$(PROFILER)  ./$^ $(INPUTS)
+
 clean:
-	rm -f *.o work1 work2 perf.*
+	rm -f *.o work1 work2 work3 perf.*
 
 .PHONY: clean run
