@@ -53,12 +53,18 @@ namespace MARC {
       /*
        * Constructor.
        */
-      explicit ThreadPool (const std::uint32_t numThreads, std::function <void (void)> codeToExecuteAtDeconstructor = nullptr)
+      explicit ThreadPool (
+        const std::uint32_t numThreads = std::thread::hardware_concurrency(),
+        const bool extendible = false,
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr)
         :
         m_done{false},
         m_workQueue{},
-        m_threads{}
+        m_threads{},
+        extendible{false}
       {
+        this->extendible = extendible;
+
         try {
 
           /*
@@ -86,39 +92,13 @@ namespace MARC {
         }
       }
 
-      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor) {
-        this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-
-        return ;
-      }
+      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
 
       /*
        * Submit a job to be run by the thread pool.
        */
       template <typename Func, typename... Args>
-      auto submit (Func&& func, Args&&... args) {
-
-        /*
-         * Making the task.
-         */
-        auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-        using ResultType = std::result_of_t<decltype(boundTask)()>;
-        using PackagedTask = std::packaged_task<ResultType()>;
-        using TaskType = ThreadTask<PackagedTask>;
-        PackagedTask task{std::move(boundTask)};
-
-        /*
-         * Create the future.
-         */
-        TaskFuture<ResultType> result{task.get_future()};
-        
-        /*
-         * Submit the task.
-         */
-        m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
-      
-        return result;
-      }
+      auto submit (Func&& func, Args&&... args);
 
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
@@ -181,6 +161,16 @@ namespace MARC {
     private:
 
       /*
+       * Object fields.
+       */
+      bool extendible;
+      std::atomic_bool m_done;
+      ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
+      std::vector<std::thread> m_threads;
+      std::atomic_bool *threadAvailability;
+      ThreadSafeQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
+
+      /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
       void worker (std::atomic_bool *availability){
@@ -229,15 +219,50 @@ namespace MARC {
 
         return ;
       }
-
-      /*
-       * Object fields.
-       */
-      std::atomic_bool m_done;
-      ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
-      std::vector<std::thread> m_threads;
-      std::atomic_bool *threadAvailability;
-      ThreadSafeQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
   };
 
+}
+
+void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
+  this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
+
+  return ;
+}
+
+template <typename Func, typename... Args>
+auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
+
+  /*
+   * Making the task.
+   */
+  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+  using ResultType = std::result_of_t<decltype(boundTask)()>;
+  using PackagedTask = std::packaged_task<ResultType()>;
+  using TaskType = ThreadTask<PackagedTask>;
+  PackagedTask task{std::move(boundTask)};
+
+  /*
+   * Create the future.
+   */
+  TaskFuture<ResultType> result{task.get_future()};
+  
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+  /*
+   * Check if we need to spawn new threads.
+   */
+  if (!this->extendible){
+     return result;
+  }
+  if (this->numberOfIdleThreads() < this->m_workQueue.size()){
+
+    /*
+     * Spawn new threads.
+     */
+  }
+
+  return result;
 }
