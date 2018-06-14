@@ -1,7 +1,7 @@
 CPP=clang++
 CFLAGS=-std=c++14 -g -I../../include
 LIBS=-pthreads
-PROGRAMS=test1 test2 test3 baseline
+PROGRAMS=test1 test2 test3 baseline test_extendible
 PROGRAM=baseline
 PROFILER=/usr/bin/time taskset -c 1
 PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
@@ -18,6 +18,9 @@ test2: test2.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 test3: test3.o
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
+test_extendible: test_extendible.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 baseline: baseline.o

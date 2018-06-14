@@ -60,27 +60,15 @@ namespace MARC {
         :
         m_done{false},
         m_workQueue{},
-        m_threads{},
-        extendible{false}
+        m_threads{}
       {
         this->extendible = extendible;
 
+        /*
+         * Start threads.
+         */
         try {
-
-          /*
-           * Initialize the per-thread flags.
-           */
-          this->threadAvailability = new std::atomic_bool[numThreads];
-          for(auto i = 0u; i < numThreads; ++i) {
-            this->threadAvailability[i] = true;
-          }
-
-          /*
-           * Start threads.
-           */
-          for(auto i = 0u; i < numThreads; ++i) {
-            m_threads.emplace_back(&ThreadPool::worker, this, &(this->threadAvailability[i]));
-          }
+          this->newThreads(numThreads);
 
         } catch(...) {
           destroy();
@@ -127,7 +115,8 @@ namespace MARC {
         std::uint32_t n = 0;
 
         for (auto i=0; i < this->m_threads.size(); i++){
-          if (this->threadAvailability[i]){
+          auto isThreadAvailable = this->threadAvailability[i];
+          if (*isThreadAvailable){
             n++;
           }
         }
@@ -163,62 +152,28 @@ namespace MARC {
       /*
        * Object fields.
        */
-      bool extendible;
       std::atomic_bool m_done;
       ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
       std::vector<std::thread> m_threads;
-      std::atomic_bool *threadAvailability;
+      std::vector<std::atomic_bool *> threadAvailability;
       ThreadSafeQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
+      bool extendible;
+      mutable std::mutex extendingMutex;
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability){
-        while(!m_done) {
-          *availability = true;
-          std::unique_ptr<IThreadTask> pTask{nullptr};
-          if(m_workQueue.waitPop(pTask)) {
-            *availability = false;
-            pTask->execute();
-          }
-        }
+      void worker (std::atomic_bool *availability);
 
-        return ;
-      }
+      /*
+       * Start new threads.
+       */
+      void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
        * Invalidates the queue and joins all running threads.
        */
-      void destroy(void) {
-
-        /*
-         * Execute the user code.
-         */
-        while (codeToExecuteByTheDeconstructor.size() > 0){
-          std::function<void ()> code;
-          codeToExecuteByTheDeconstructor.waitPop(code);
-          code();
-        }
-
-        /*
-         * Signal threads to quite.
-         */
-        m_done = true;
-        m_workQueue.invalidate();
-
-        /*
-         * Join threads.
-         */
-        for(auto& thread : m_threads) {
-          if(!thread.joinable()) {
-            continue ;
-          }
-          thread.join();
-        }
-        delete[] this->threadAvailability;
-
-        return ;
-      }
+      void destroy (void);
   };
 
 }
@@ -262,7 +217,74 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
     /*
      * Spawn new threads.
      */
+    std::lock_guard<std::mutex> lock{this->extendingMutex};
+    this->newThreads(2);
   }
 
   return result;
+}
+
+void MARC::ThreadPool::worker (std::atomic_bool *availability){
+
+  while(!m_done) {
+    (*availability) = true;
+    std::unique_ptr<IThreadTask> pTask{nullptr};
+    if(m_workQueue.waitPop(pTask)) {
+      (*availability) = false;
+      pTask->execute();
+    }
+  }
+
+  return ;
+}
+
+void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
+  for (auto i = 0; i < newThreadsToGenerate; i++){
+
+    /*
+     * Create the availability flag.
+     */
+    auto flag = new std::atomic_bool(true);
+    this->threadAvailability.push_back(flag);
+
+    /*
+     * Create a new thread.
+     */
+    this->m_threads.emplace_back(&ThreadPool::worker, this, flag);
+  }
+
+  return ;
+}
+
+void MARC::ThreadPool::destroy (void){
+
+  /*
+   * Execute the user code.
+   */
+  while (codeToExecuteByTheDeconstructor.size() > 0){
+    std::function<void ()> code;
+    codeToExecuteByTheDeconstructor.waitPop(code);
+    code();
+  }
+
+  /*
+   * Signal threads to quite.
+   */
+  m_done = true;
+  m_workQueue.invalidate();
+
+  /*
+   * Join threads.
+   */
+  for(auto& thread : m_threads) {
+    if(!thread.joinable()) {
+      continue ;
+    }
+    thread.join();
+  }
+  for (auto flag : this->threadAvailability){
+    delete flag;
+  }
+
+  return ;
 }
