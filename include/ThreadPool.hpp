@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Simone Campanoni
+ * Copyright 2017 - 2018  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -39,16 +39,10 @@ namespace MARC {
 
       /*
        * Default constructor.
+       *
+       * By default, the thread pool is not extendible and it creates at least one thread.
        */
-      ThreadPool(void)
-        :ThreadPool{false}
-      {
-        /*
-         * Always create at least one thread.  If hardware_concurrency() returns 0,
-         * subtracting one would turn it to UINT_MAX, so get the maximum of
-         * hardware_concurrency() and 2 before subtracting 1.
-         */
-      }
+      ThreadPool(void);
 
       /*
        * Constructor.
@@ -56,29 +50,7 @@ namespace MARC {
       explicit ThreadPool (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
-        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr)
-        :
-        m_done{false},
-        m_workQueue{},
-        m_threads{}
-      {
-        this->extendible = extendible;
-
-        /*
-         * Start threads.
-         */
-        try {
-          this->newThreads(numThreads);
-
-        } catch(...) {
-          destroy();
-          throw;
-        }
-
-        if (codeToExecuteAtDeconstructor != nullptr){
-          this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-        }
-      }
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
 
       void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
 
@@ -92,50 +64,22 @@ namespace MARC {
        * Submit a job to be run by the thread pool and detach it from the caller.
        */
       template <typename Func, typename... Args>
-      void submitAndDetach (Func&& func, Args&&... args) {
+      void submitAndDetach (Func&& func, Args&&... args) ;
 
-        /*
-         * Making the task.
-         */
-        auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-        using ResultType = std::result_of_t<decltype(boundTask)()>;
-        using PackagedTask = std::packaged_task<ResultType()>;
-        using TaskType = ThreadTask<PackagedTask>;
-        PackagedTask task{std::move(boundTask)};
+      /*
+       * Return the number of threads that are currently idle.
+       */
+      std::uint32_t numberOfIdleThreads (void) const ;
 
-        /*
-         * Submit the task.
-         */
-        m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
-
-        return ;
-      }
-
-      std::uint32_t numberOfIdleThreads (void) const {
-        std::uint32_t n = 0;
-
-        for (auto i=0; i < this->m_threads.size(); i++){
-          auto isThreadAvailable = this->threadAvailability[i];
-          if (*isThreadAvailable){
-            n++;
-          }
-        }
-
-        return n;
-      }
-
-      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const {
-        return this->m_workQueue.size();
-      }
+      /*
+       * Return the number of tasks that did not start executing yet.
+       */
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const ;
 
       /*
        * Destructor.
        */
-      ~ThreadPool(void) {
-        destroy();
-
-        return ;
-      }
+      ~ThreadPool(void);
 
       /*
        * Non-copyable.
@@ -176,6 +120,52 @@ namespace MARC {
       void destroy (void);
   };
 
+}
+
+MARC::ThreadPool::ThreadPool(void) 
+  : ThreadPool{false} 
+  {
+
+  /*
+   * Always create at least one thread.  If hardware_concurrency() returns 0,
+   * subtracting one would turn it to UINT_MAX, so get the maximum of
+   * hardware_concurrency() and 2 before subtracting 1.
+   */
+
+  return ;
+}
+
+MARC::ThreadPool::ThreadPool (
+  const bool extendible,
+  const std::uint32_t numThreads,
+  std::function <void (void)> codeToExecuteAtDeconstructor)
+  :
+  m_done{false},
+  m_workQueue{},
+  m_threads{}
+  {
+
+  /*
+   * Set whether or not the thread pool can dynamically change its number of threads.
+   */
+  this->extendible = extendible;
+
+  /*
+   * Start threads.
+   */
+  try {
+    this->newThreads(numThreads);
+
+  } catch(...) {
+    destroy();
+    throw;
+  }
+
+  if (codeToExecuteAtDeconstructor != nullptr){
+    this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
+  }
+
+  return ;
 }
 
 void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
@@ -222,6 +212,26 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
   }
 
   return result;
+}
+
+template <typename Func, typename... Args>
+void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
+
+  /*
+   * Making the task.
+   */
+  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+  using ResultType = std::result_of_t<decltype(boundTask)()>;
+  using PackagedTask = std::packaged_task<ResultType()>;
+  using TaskType = ThreadTask<PackagedTask>;
+  PackagedTask task{std::move(boundTask)};
+
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+  return ;
 }
 
 void MARC::ThreadPool::worker (std::atomic_bool *availability){
@@ -285,6 +295,31 @@ void MARC::ThreadPool::destroy (void){
   for (auto flag : this->threadAvailability){
     delete flag;
   }
+
+  return ;
+}
+
+std::uint32_t MARC::ThreadPool::numberOfIdleThreads (void) const {
+  std::uint32_t n = 0;
+
+  for (auto i=0; i < this->m_threads.size(); i++){
+    auto isThreadAvailable = this->threadAvailability[i];
+    if (*isThreadAvailable){
+      n++;
+    }
+  }
+
+  return n;
+}
+
+std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
+  auto s = this->m_workQueue.size();
+
+  return s;
+}
+
+MARC::ThreadPool::~ThreadPool (void){
+  destroy();
 
   return ;
 }
