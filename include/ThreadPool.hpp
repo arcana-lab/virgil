@@ -41,7 +41,7 @@ namespace MARC {
        * Default constructor.
        */
       ThreadPool(void)
-        :ThreadPool{std::max(std::thread::hardware_concurrency(), 2u) - 1u}
+        :ThreadPool{false}
       {
         /*
          * Always create at least one thread.  If hardware_concurrency() returns 0,
@@ -54,8 +54,8 @@ namespace MARC {
        * Constructor.
        */
       explicit ThreadPool (
-        const std::uint32_t numThreads = std::thread::hardware_concurrency(),
-        const bool extendible = false,
+        const bool extendible,
+        const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr)
         :
         m_done{false},
