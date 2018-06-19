@@ -26,7 +26,7 @@
 namespace MARC {
 
   template <typename T>
-  class ThreadSafeSpinLockQueue : public ThreadSafeQueue<T> {
+  class ThreadSafeSpinLockQueue final : public ThreadSafeQueue<T> {
     using Base = MARC::ThreadSafeQueue<T>;
 
     public:
