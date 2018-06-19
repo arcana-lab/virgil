@@ -20,7 +20,7 @@
 #include <queue>
 #include <utility>
 
-#include <ThreadSafeQueue.hpp>
+#include "ThreadSafeQueue.hpp"
 
 namespace MARC {
 
