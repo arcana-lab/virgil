@@ -100,12 +100,6 @@ namespace MARC {
 
     private:
       mutable pthread_spinlock_t spinLock;
-
-      /*
-       * Private methods.
-       */
-      void internal_push (T& value);
-      void internal_pop (T& out);
   };
 }
 
@@ -124,7 +118,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
     return false;
   }
 
-  internal_pop(out);
+  this->internal_pop(out);
 
   pthread_spin_unlock(&this->spinLock);
   return true;
@@ -159,7 +153,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
     return false;
   }
 
-  internal_pop(out);
+  this->internal_pop(out);
 
   pthread_spin_unlock(&this->spinLock);
   return true;
@@ -206,7 +200,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
 template <typename T>
 void MARC::ThreadSafeSpinLockQueue<T>::push (T value){
   pthread_spin_lock(&this->spinLock);
-  internal_push(value);
+  this->internal_push(value);
   pthread_spin_unlock(&this->spinLock);
 
   return ;
@@ -230,7 +224,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPush (T value, int64_t maxSize){
     return false;
   }
 
-  internal_push(value);
+  this->internal_push(value);
 
   pthread_spin_unlock(&this->spinLock);
   return true;
@@ -289,33 +283,6 @@ void MARC::ThreadSafeSpinLockQueue<T>::invalidate (void) {
 template <typename T>
 MARC::ThreadSafeSpinLockQueue<T>::~ThreadSafeSpinLockQueue(void){
   this->invalidate();
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::internal_push (T& value){
-
-  /*
-   * Push the value to the queue.
-   */
-  Base::m_queue.push(std::move(value));
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::internal_pop (T& out){
-
-  /*
-   * Fetch the element on top of the queue.
-   */
-  out = std::move(Base::m_queue.front());
-
-  /*
-   * Pop the top element from the queue.
-   */
-  this->Base::m_queue.pop();
 
   return ;
 }
