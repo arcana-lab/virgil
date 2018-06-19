@@ -16,12 +16,12 @@ int main (int argc, char *argv[]){
   }
   auto tasks = atoi(argv[1]);
   auto iters = atoi(argv[2]);
-  auto threads = atoi(argv[3]);
+  auto threads = (std::uint32_t) atoi(argv[3]);
 
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool(threads);
+  MARC::ThreadPool pool{false, threads};
 
   /*
    * Submit jobs.

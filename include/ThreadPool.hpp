@@ -14,7 +14,7 @@
  */
 #pragma once
 
-#include "ThreadSafeQueue.hpp"
+#include "ThreadSafeMutexQueue.hpp"
 #include "ThreadTask.hpp"
 #include "TaskFuture.hpp"
 
@@ -97,10 +97,10 @@ namespace MARC {
        * Object fields.
        */
       std::atomic_bool m_done;
-      ThreadSafeQueue<std::unique_ptr<IThreadTask>> m_workQueue;
+      ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>> m_workQueue;
       std::vector<std::thread> m_threads;
       std::vector<std::atomic_bool *> threadAvailability;
-      ThreadSafeQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
+      ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
       bool extendible;
       mutable std::mutex extendingMutex;
 
@@ -142,6 +142,7 @@ MARC::ThreadPool::ThreadPool (
   :
   m_done{false},
   m_workQueue{},
+  codeToExecuteByTheDeconstructor{},
   m_threads{}
   {
 

@@ -4,7 +4,7 @@
 #include "ThreadPool.hpp"
 #include "ThreadSafeSpinLockQueue.hpp"
 
-void pushFunction (int64_t pushes, MARC::ThreadSafeSpinLockQueue<int64_t> *queue){
+void pushFunction (int64_t pushes, MARC::ThreadSafeQueue<int64_t> *queue){
   for (auto i=0; i < pushes; i++){
     queue->push(i);
   }
@@ -12,7 +12,7 @@ void pushFunction (int64_t pushes, MARC::ThreadSafeSpinLockQueue<int64_t> *queue
   return ;
 }
 
-void pullFunction (int64_t pushes, MARC::ThreadSafeSpinLockQueue<int64_t> *queue){
+void pullFunction (int64_t pushes, MARC::ThreadSafeQueue<int64_t> *queue){
   int64_t finalSum = 0;
   for (auto i=0; i < pushes; i++){
     int64_t tmpValue;
@@ -43,7 +43,7 @@ int main (int argc, char *argv[]){
   /*
    * Create the queue.
    */
-  MARC::ThreadSafeSpinLockQueue<int64_t> queue;
+  MARC::ThreadSafeSpinLockQueue<int64_t> queue{};
 
   /*
    * Work

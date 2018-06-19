@@ -30,31 +30,31 @@ namespace MARC {
        * Attempt to get the first value in the queue.
        * Returns true if a value was successfully written to the out parameter, false otherwise.
        */
-      virtual bool tryPop (T& out);
+      virtual bool tryPop (T& out) = 0;
 
       /*
        * Get the first value in the queue.
        * Will block until a value is available unless clear is called or the instance is destructed.
        * Returns true if a value was successfully written to the out parameter, false otherwise.
        */
-      virtual bool waitPop (T& out);
-      virtual bool waitPop (void);
+      virtual bool waitPop (T& out) = 0;
+      virtual bool waitPop (void) = 0;
 
       /*
        * Push a new value onto the queue.
        */
-      virtual void push (T value);
+      virtual void push (T value) = 0;
 
       /*
        * Push a new value onto the queue if the queue size is less than maxSize.
        * Otherwise, wait for it to happen and then push the new value.
        */
-      virtual bool waitPush (T value, int64_t maxSize);
+      virtual bool waitPush (T value, int64_t maxSize) = 0;
 
       /*
        * Clear all items from the queue.
        */
-      virtual void clear (void);
+      virtual void clear (void) = 0;
 
       /*
        * Invalidate the queue.
@@ -63,28 +63,23 @@ namespace MARC {
        * The queue is invalid after calling this method and it is an error
        * to continue using a queue after this method has been called.
        */
-      virtual void invalidate(void);
+      virtual void invalidate(void) = 0;
 
       /*
        * Check whether or not the queue is empty.
        */
-      virtual bool empty (void) const;
+      virtual bool empty (void) const = 0;
 
       /*
        * Return the number of elements in the queue.
        */
-      virtual int64_t size (void) const;
+      virtual int64_t size (void) const = 0;
 
       /*
        * Returns whether or not this queue is valid.
        */
       virtual bool isValid(void) const;
       
-      /*
-       * Destructor.
-       */
-      ~ThreadSafeQueue(void);
-
       /*
        * Default constructor.
        */
@@ -115,248 +110,12 @@ namespace MARC {
        */
       void internal_push (T& value);
       void internal_pop (T& out);
-
-    private:
-
-      /*
-       * Fields
-       */
-      mutable std::mutex m_mutex;
-      std::condition_variable empty_condition;
-      std::condition_variable full_condition;
-
-      /*
-       * Methods.
-       */
-      void internal_pushAndNotify(T& value);
-      void internal_popAndNotify(T& out);
   };
-}
-
-template <typename T>
-bool MARC::ThreadSafeQueue<T>::tryPop (T& out){
-  std::lock_guard<std::mutex> lock{m_mutex};
-  if(m_queue.empty() || !m_valid){
-    return false;
-  }
-
-  this->internal_popAndNotify(out);
-
-  return true;
-}
-
-template <typename T>
-bool MARC::ThreadSafeQueue<T>::waitPop (T& out){
-  std::unique_lock<std::mutex> lock{m_mutex};
-
-  /*
-   * Check if the queue is not valid anymore.
-   */
-  if(!m_valid) {
-    return false;
-  }
-
-  /*
-   * We need to wait until the queue is not empty.
-   *
-   * Check if the queue is empty.
-   */
-  if (m_queue.empty()){
-
-    /*
-     * Wait until the queue will be in a valid state and it will be not empty.
-     */
-    empty_condition.wait(lock, 
-      [this]()
-      {
-        return !m_queue.empty() || !m_valid;
-      }
-    );
-  }
-
-  /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
-   */
-  if(!m_valid) {
-    return false;
-  }
-
-  this->internal_popAndNotify(out);
-
-  return true;
-}
-
-template <typename T>
-bool MARC::ThreadSafeQueue<T>::waitPop (void){
-  std::unique_lock<std::mutex> lock{m_mutex};
-
-  /*
-   * Check if the queue is not valid anymore.
-   */
-  if(!m_valid) {
-    return false;
-  }
-
-  /*
-   * We need to wait until the queue is not empty.
-   *
-   * Check if the queue is empty.
-   */
-  if (m_queue.empty()){
-
-    /*
-     * Wait until the queue will be in a valid state and it will be not empty.
-     */
-    empty_condition.wait(lock, 
-      [this]()
-      {
-        return !m_queue.empty() || !m_valid;
-      }
-    );
-  }
-
-  /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
-   */
-  if(!m_valid) {
-    return false;
-  }
-
-  /*
-   * Pop the top element from the queue.
-   */
-  this->m_queue.pop();
-
-  /*
-   * Notify about the fact that the queue might be not full now.
-   */
-  this->full_condition.notify_one();
-
-  return true;
-}
-
-template <typename T>
-void MARC::ThreadSafeQueue<T>::push (T value){
-  std::lock_guard<std::mutex> lock{m_mutex};
-  internal_pushAndNotify(value);
-
-  return ;
-}
- 
-template <typename T>
-bool MARC::ThreadSafeQueue<T>::waitPush (T value, int64_t maxSize){
-  std::unique_lock<std::mutex> lock{m_mutex};
-
-  full_condition.wait(lock, 
-    [this, maxSize]()
-    {
-      return (m_queue.size() < maxSize) || !m_valid;
-    }
-  );
-
-  /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
-   */
-  if(!m_valid) {
-    return false;
-  }
-
-  internal_pushAndNotify(value);
-
-  return true;
-}
-
-template <typename T>
-bool MARC::ThreadSafeQueue<T>::empty (void) const {
-  std::lock_guard<std::mutex> lock{m_mutex};
-
-  return m_queue.empty();
-}
-
-template <typename T>
-int64_t MARC::ThreadSafeQueue<T>::size (void) const {
-  std::lock_guard<std::mutex> lock{m_mutex};
-
-  return m_queue.size();
-}
-
-template <typename T>
-void MARC::ThreadSafeQueue<T>::clear (void) {
-  std::lock_guard<std::mutex> lock{m_mutex};
-  while(!m_queue.empty()) {
-    m_queue.pop();
-  }
-  full_condition.notify_all();
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeQueue<T>::invalidate (void) {
-  std::lock_guard<std::mutex> lock{m_mutex};
-
-  /*
-   * Check if the queue has been already invalidated.
-   */
-  if (!m_valid){
-    return ;
-  }
-
-  /*
-   * Invalidate the queue.
-   */
-  m_valid = false;
-  empty_condition.notify_all();
-  full_condition.notify_all();
-
-  return ;
 }
 
 template <typename T>
 bool MARC::ThreadSafeQueue<T>::isValid (void) const {
   return m_valid;
-}
-
-template <typename T>
-MARC::ThreadSafeQueue<T>::~ThreadSafeQueue(void){
-  this->invalidate();
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeQueue<T>::internal_pushAndNotify (T& value){
-
-  /*
-   * Push the value to the queue.
-   */
-  this->internal_push(value);
-
-  /*
-   * Notify that the queue is not empty.
-   */
-  empty_condition.notify_one();
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeQueue<T>::internal_popAndNotify (T& out){
-
-  /*
-   * Pop the top element from the queue.
-   */
-  this->internal_pop(out);
-
-  /*
-   * Notify about the fact that the queue might be not full now.
-   */
-  full_condition.notify_one();
-
-  return ;
 }
 
 template <typename T>

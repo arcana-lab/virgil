@@ -9,7 +9,7 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  *
- * The ThreadSafeSpinLockQueue class.
+ * The ThreadSafeMutexQueue class.
  * Provides a wrapper around a basic queue to provide thread safety.
  */
 #pragma once
@@ -19,14 +19,13 @@
 #include <mutex>
 #include <queue>
 #include <utility>
-#include <pthread.h>
 
 #include <ThreadSafeQueue.hpp>
 
 namespace MARC {
 
   template <typename T>
-  class ThreadSafeSpinLockQueue final : public ThreadSafeQueue<T> {
+  class ThreadSafeMutexQueue final : public ThreadSafeQueue<T> {
     using Base = MARC::ThreadSafeQueue<T>;
 
     public:
@@ -34,7 +33,7 @@ namespace MARC {
       /*
        * Default constructor
        */
-      ThreadSafeSpinLockQueue ();
+      ThreadSafeMutexQueue ();
 
       /*
        * Attempt to get the first value in the queue.
@@ -88,64 +87,83 @@ namespace MARC {
       /*
        * Destructor.
        */
-      ~ThreadSafeSpinLockQueue(void);
+      ~ThreadSafeMutexQueue(void);
 
       /*
        * Not copyable.
        */
-      ThreadSafeSpinLockQueue (const ThreadSafeSpinLockQueue & other) = delete;
-      ThreadSafeSpinLockQueue & operator= (const ThreadSafeSpinLockQueue & other) = delete;
+      ThreadSafeMutexQueue (const ThreadSafeMutexQueue & other) = delete;
+      ThreadSafeMutexQueue & operator= (const ThreadSafeMutexQueue & other) = delete;
 
       /*
        * Not assignable.
        */
-      ThreadSafeSpinLockQueue (const ThreadSafeSpinLockQueue && other) = delete;
-      ThreadSafeSpinLockQueue & operator= (const ThreadSafeSpinLockQueue && other) = delete;
+      ThreadSafeMutexQueue (const ThreadSafeMutexQueue && other) = delete;
+      ThreadSafeMutexQueue & operator= (const ThreadSafeMutexQueue && other) = delete;
 
     private:
-      mutable pthread_spinlock_t spinLock;
+
+      /*
+       * Fields
+       */
+      mutable std::mutex m_mutex;
+      std::condition_variable empty_condition;
+      std::condition_variable full_condition;
+
+      /*
+       * Methods.
+       */
+      void internal_pushAndNotify(T& value);
+      void internal_popAndNotify(T& out);
+
   };
 }
 
 template <typename T>
-MARC::ThreadSafeSpinLockQueue<T>::ThreadSafeSpinLockQueue(){
-  pthread_spin_init(&this->spinLock, 0);
+MARC::ThreadSafeMutexQueue<T>::ThreadSafeMutexQueue(){
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
-  pthread_spin_lock(&this->spinLock);
+bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
+  std::lock_guard<std::mutex> lock{m_mutex};
   if(Base::m_queue.empty() || !Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
-  this->internal_pop(out);
+  this->internal_popAndNotify(out);
 
-  pthread_spin_unlock(&this->spinLock);
   return true;
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
-  pthread_spin_lock(&this->spinLock);
+bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
+  std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
    * Check if the queue is not valid anymore.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
   /*
-   * Wait until the queue will be in a valid state and it will be not empty.
+   * We need to wait until the queue is not empty.
+   *
+   * Check if the queue is empty.
    */
-  while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
+  if (Base::m_queue.empty()){
+
+    /*
+     * Wait until the queue will be in a valid state and it will be not empty.
+     */
+    empty_condition.wait(lock, 
+      [this]()
+      {
+        return !Base::m_queue.empty() || !Base::m_valid;
+      }
+    );
   }
 
   /*
@@ -153,34 +171,41 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
    * but empty queue will not proceed, so only need to check for validity before proceeding.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
-  this->internal_pop(out);
+  this->internal_popAndNotify(out);
 
-  pthread_spin_unlock(&this->spinLock);
   return true;
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
-  pthread_spin_lock(&this->spinLock);
+bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
+  std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
    * Check if the queue is not valid anymore.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
   /*
-   * Wait until the queue will be in a valid state and it will be not empty.
+   * We need to wait until the queue is not empty.
+   *
+   * Check if the queue is empty.
    */
-  while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
+  if (Base::m_queue.empty()){
+
+    /*
+     * Wait until the queue will be in a valid state and it will be not empty.
+     */
+    empty_condition.wait(lock, 
+      [this]()
+      {
+        return !Base::m_queue.empty() || !Base::m_valid;
+      }
+    );
   }
 
   /*
@@ -188,7 +213,6 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
    * but empty queue will not proceed, so only need to check for validity before proceeding.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
@@ -197,81 +221,84 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
    */
   this->Base::m_queue.pop();
 
-  pthread_spin_unlock(&this->spinLock);
+  /*
+   * Notify about the fact that the queue might be not full now.
+   */
+  this->full_condition.notify_one();
+
   return true;
 }
 
 template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::push (T value){
-  pthread_spin_lock(&this->spinLock);
-  this->internal_push(value);
-  pthread_spin_unlock(&this->spinLock);
+void MARC::ThreadSafeMutexQueue<T>::push (T value){
+  std::lock_guard<std::mutex> lock{m_mutex};
+  internal_pushAndNotify(value);
 
   return ;
 }
  
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPush (T value, int64_t maxSize){
-  pthread_spin_lock(&this->spinLock);
+bool MARC::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
+  std::unique_lock<std::mutex> lock{m_mutex};
 
-  while (Base::m_queue.size() >= maxSize && Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
-  }
+  full_condition.wait(lock, 
+    [this, maxSize]()
+    {
+      return (Base::m_queue.size() < maxSize) || !Base::m_valid;
+    }
+  );
 
   /*
    * Using the condition in the predicate ensures that spurious wakeups with a valid
    * but empty queue will not proceed, so only need to check for validity before proceeding.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
-  this->internal_push(value);
+  internal_pushAndNotify(value);
 
-  pthread_spin_unlock(&this->spinLock);
   return true;
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::empty (void) const {
-  pthread_spin_lock(&this->spinLock);
-  auto empty = Base::m_queue.empty();
-  pthread_spin_unlock(&this->spinLock);
+bool MARC::ThreadSafeMutexQueue<T>::empty (void) const {
+  std::lock_guard<std::mutex> lock{m_mutex};
 
-  return empty;
+  return Base::m_queue.empty();
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeSpinLockQueue<T>::size (void) const {
-  pthread_spin_lock(&this->spinLock);
-  auto s = Base::m_queue.size();
-  pthread_spin_unlock(&this->spinLock);
+int64_t MARC::ThreadSafeMutexQueue<T>::size (void) const {
+  std::lock_guard<std::mutex> lock{m_mutex};
 
-  return s;
+  return Base::m_queue.size();
 }
 
 template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::clear (void) {
-  pthread_spin_lock(&this->spinLock);
+void MARC::ThreadSafeMutexQueue<T>::clear (void) {
+  std::lock_guard<std::mutex> lock{m_mutex};
+
   while(!Base::m_queue.empty()) {
     Base::m_queue.pop();
   }
 
-  pthread_spin_unlock(&this->spinLock);
+  /*
+   * Notify
+   */
+  full_condition.notify_all();
+
   return ;
 }
 
 template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::invalidate (void) {
-  pthread_spin_lock(&this->spinLock);
+void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
+  std::lock_guard<std::mutex> lock{m_mutex};
 
   /*
    * Check if the queue has been already invalidated.
    */
   if (!Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
     return ;
   }
 
@@ -280,13 +307,50 @@ void MARC::ThreadSafeSpinLockQueue<T>::invalidate (void) {
    */
   Base::m_valid = false;
 
-  pthread_spin_unlock(&this->spinLock);
+  /*
+   * Notify
+   */
+  empty_condition.notify_all();
+  full_condition.notify_all();
+
   return ;
 }
 
 template <typename T>
-MARC::ThreadSafeSpinLockQueue<T>::~ThreadSafeSpinLockQueue(void){
+MARC::ThreadSafeMutexQueue<T>::~ThreadSafeMutexQueue(void){
   this->invalidate();
+
+  return ;
+}
+
+template <typename T>
+void MARC::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
+
+  /*
+   * Push the value to the queue.
+   */
+  this->internal_push(value);
+
+  /*
+   * Notify that the queue is not empty.
+   */
+  empty_condition.notify_one();
+
+  return ;
+}
+
+template <typename T>
+void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
+
+  /*
+   * Pop the top element from the queue.
+   */
+  this->internal_pop(out);
+
+  /*
+   * Notify about the fact that the queue might be not full now.
+   */
+  full_condition.notify_one();
 
   return ;
 }

@@ -2,7 +2,7 @@
 #include <vector>
 
 #include "ThreadPool.hpp"
-#include "ThreadSafeQueue.hpp"
+#include "ThreadSafeMutexQueue.hpp"
 
 void pushFunction (int64_t pushes, MARC::ThreadSafeQueue<int64_t> *queue){
   for (auto i=0; i < pushes; i++){
@@ -43,7 +43,7 @@ int main (int argc, char *argv[]){
   /*
    * Create the queue.
    */
-  MARC::ThreadSafeQueue<int64_t> queue;
+  MARC::ThreadSafeMutexQueue<int64_t> queue{};
 
   /*
    * Work
