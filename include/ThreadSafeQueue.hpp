@@ -103,19 +103,33 @@ namespace MARC {
       ThreadSafeQueue & operator= (const ThreadSafeQueue && other) = delete;
 
     protected:
+
+      /*
+       * Fields
+       */
       std::queue<T> m_queue;
       std::atomic_bool m_valid{true};
 
+      /*
+       * Methods.
+       */
+      void internal_push (T& value);
+      void internal_pop (T& out);
+
     private:
+
+      /*
+       * Fields
+       */
       mutable std::mutex m_mutex;
       std::condition_variable empty_condition;
       std::condition_variable full_condition;
 
       /*
-       * Private methods.
+       * Methods.
        */
-      void internal_push (T& value);
-      void internal_pop (T& out);
+      void internal_pushAndNotify(T& value);
+      void internal_popAndNotify(T& out);
   };
 }
 
@@ -126,7 +140,7 @@ bool MARC::ThreadSafeQueue<T>::tryPop (T& out){
     return false;
   }
 
-  internal_pop(out);
+  this->internal_popAndNotify(out);
 
   return true;
 }
@@ -168,7 +182,7 @@ bool MARC::ThreadSafeQueue<T>::waitPop (T& out){
     return false;
   }
 
-  internal_pop(out);
+  this->internal_popAndNotify(out);
 
   return true;
 }
@@ -226,7 +240,7 @@ bool MARC::ThreadSafeQueue<T>::waitPop (void){
 template <typename T>
 void MARC::ThreadSafeQueue<T>::push (T value){
   std::lock_guard<std::mutex> lock{m_mutex};
-  internal_push(value);
+  internal_pushAndNotify(value);
 
   return ;
 }
@@ -250,7 +264,7 @@ bool MARC::ThreadSafeQueue<T>::waitPush (T value, int64_t maxSize){
     return false;
   }
 
-  internal_push(value);
+  internal_pushAndNotify(value);
 
   return true;
 }
@@ -314,17 +328,44 @@ MARC::ThreadSafeQueue<T>::~ThreadSafeQueue(void){
 }
 
 template <typename T>
+void MARC::ThreadSafeQueue<T>::internal_pushAndNotify (T& value){
+
+  /*
+   * Push the value to the queue.
+   */
+  this->internal_push(value);
+
+  /*
+   * Notify that the queue is not empty.
+   */
+  empty_condition.notify_one();
+
+  return ;
+}
+
+template <typename T>
+void MARC::ThreadSafeQueue<T>::internal_popAndNotify (T& out){
+
+  /*
+   * Pop the top element from the queue.
+   */
+  this->internal_pop(out);
+
+  /*
+   * Notify about the fact that the queue might be not full now.
+   */
+  full_condition.notify_one();
+
+  return ;
+}
+
+template <typename T>
 void MARC::ThreadSafeQueue<T>::internal_push (T& value){
 
   /*
    * Push the value to the queue.
    */
   m_queue.push(std::move(value));
-
-  /*
-   * Notify that the queue is not empty.
-   */
-  empty_condition.notify_one();
 
   return ;
 }
@@ -341,11 +382,6 @@ void MARC::ThreadSafeQueue<T>::internal_pop (T& out){
    * Pop the top element from the queue.
    */
   this->m_queue.pop();
-
-  /*
-   * Notify about the fact that the queue might be not full now.
-   */
-  full_condition.notify_one();
 
   return ;
 }
