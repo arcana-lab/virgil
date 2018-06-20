@@ -6,8 +6,9 @@ PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
 PROFILER_SHOW=perf report --stdio
 OPT=-O3
 INPUTS=100000000
+PROGRAMS=work1 work2 work3 work4
 
-all: work1 work2 work3
+all: $(PROGRAMS)
 
 work1: work1.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
@@ -16,6 +17,9 @@ work2: work2.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 work3: work3.o
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
+work4: work4.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
 %.o: %.cpp
@@ -30,7 +34,10 @@ run2: work2
 run3: work3
 	$(PROFILER)  ./$^ $(INPUTS)
 
+run4: work4
+	$(PROFILER)  ./$^ $(INPUTS)
+
 clean:
-	rm -f *.o work1 work2 work3 perf.*
+	rm -f *.o perf.* $(PROGRAMS)
 
 .PHONY: clean run
