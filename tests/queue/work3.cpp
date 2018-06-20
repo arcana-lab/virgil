@@ -2,42 +2,22 @@
 #include <vector>
 
 #include "ThreadPool.hpp"
-#include "ThreadSafeSpinLockQueue.hpp"
+#include "ThreadSafeLockFreeQueue.hpp"
 
-#define PACKAGE_LENGTH 8
-
-typedef struct {
-  int64_t values[PACKAGE_LENGTH];
-} package_t;
-
-void pushFunction (int64_t pushes, MARC::ThreadSafeSpinLockQueue<package_t> *queue){
-  auto packageIndex = 0;
-
-  package_t package;
+void pushFunction (int64_t pushes, MARC::ThreadSafeQueue<int64_t> *queue){
   for (auto i=0; i < pushes; i++){
-    package.values[packageIndex] = i;
-    packageIndex++;
-
-    if (packageIndex == PACKAGE_LENGTH){
-      queue->push(package);
-      packageIndex = 0;
-    }
-  }
-  if (packageIndex != 0){
-    abort();
+    queue->push(i);
   }
 
   return ;
 }
 
-void pullFunction (int64_t pushes, MARC::ThreadSafeSpinLockQueue<package_t> *queue){
+void pullFunction (int64_t pushes, MARC::ThreadSafeQueue<int64_t> *queue){
   int64_t finalSum = 0;
-  for (auto i=0; i < pushes; i += PACKAGE_LENGTH){
-    package_t tmpValues;
-    queue->waitPop(tmpValues);
-    for (auto packageIndex=0; packageIndex < PACKAGE_LENGTH; packageIndex++){
-      finalSum += tmpValues.values[packageIndex];
-    }
+  for (auto i=0; i < pushes; i++){
+    int64_t tmpValue;
+    queue->waitPop(tmpValue);
+    finalSum += tmpValue;
   }
   std::cout << finalSum << std::endl;
 
@@ -63,7 +43,7 @@ int main (int argc, char *argv[]){
   /*
    * Create the queue.
    */
-  MARC::ThreadSafeSpinLockQueue<package_t> queue;
+  MARC::ThreadSafeLockFreeQueue<int64_t> queue{};
 
   /*
    * Work

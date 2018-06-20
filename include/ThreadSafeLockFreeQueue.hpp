@@ -24,6 +24,8 @@
 #include <ThreadSafeQueue.hpp>
 #include <readerwriterqueue/readerwriterqueue.h>
 
+using namespace moodycamel ;
+
 namespace MARC {
 
   template <typename T>
@@ -104,184 +106,123 @@ namespace MARC {
       ThreadSafeLockFreeQueue & operator= (const ThreadSafeLockFreeQueue && other) = delete;
 
     private:
-      mutable pthread_spinlock_t spinLock;
+      mutable BlockingReaderWriterQueue<T> queue;
   };
 }
 
 template <typename T>
 MARC::ThreadSafeLockFreeQueue<T>::ThreadSafeLockFreeQueue(){
-  pthread_spin_init(&this->spinLock, 0);
 
   return ;
 }
 
 template <typename T>
 bool MARC::ThreadSafeLockFreeQueue<T>::tryPop (T& out){
-  pthread_spin_lock(&this->spinLock);
-  if(Base::m_queue.empty() || !Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
+
+  /*
+   * Check if the queue is not valid anymore.
+   */
+  if (!Base::m_valid){
     return false;
   }
 
-  this->internal_pop(out);
+  /*
+   * Try to pop.
+   */
+  auto success = queue.try_dequeue(out);
 
-  pthread_spin_unlock(&this->spinLock);
-  return true;
+  return success;
 }
 
 template <typename T>
 bool MARC::ThreadSafeLockFreeQueue<T>::waitPop (T& out){
-  pthread_spin_lock(&this->spinLock);
 
   /*
    * Check if the queue is not valid anymore.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
   /*
    * Wait until the queue will be in a valid state and it will be not empty.
    */
-  while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
+  while (Base::m_valid){
+    if (queue.wait_dequeue_timed(out, std::chrono::milliseconds(5))){
+      break ;
+    }
   }
 
   /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
+   * If the queue is still valid, then a value has been popped and stored in out.
    */
-  if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
-    return false;
-  }
-
-  this->internal_pop(out);
-
-  pthread_spin_unlock(&this->spinLock);
-  return true;
+  return Base::m_valid;
 }
 
 template <typename T>
 bool MARC::ThreadSafeLockFreeQueue<T>::waitPop (void){
-  pthread_spin_lock(&this->spinLock);
-
-  /*
-   * Check if the queue is not valid anymore.
-   */
-  if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
-    return false;
-  }
-
-  /*
-   * Wait until the queue will be in a valid state and it will be not empty.
-   */
-  while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
-  }
-
-  /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
-   */
-  if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
-    return false;
-  }
-
-  /*
-   * Pop the top element from the queue.
-   */
-  this->Base::m_queue.pop();
-
-  pthread_spin_unlock(&this->spinLock);
-  return true;
+  T out;
+  return waitPop(out);
 }
 
 template <typename T>
 void MARC::ThreadSafeLockFreeQueue<T>::push (T value){
-  pthread_spin_lock(&this->spinLock);
-  this->internal_push(value);
-  pthread_spin_unlock(&this->spinLock);
+  queue.enqueue(value);
 
   return ;
 }
  
 template <typename T>
 bool MARC::ThreadSafeLockFreeQueue<T>::waitPush (T value, int64_t maxSize){
-  pthread_spin_lock(&this->spinLock);
 
-  while (Base::m_queue.size() >= maxSize && Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
+  /*
+   * Wait until the queue has less elements than maxSize
+   */
+  while (queue.size_approx() > maxSize){
+    if (!Base::m_valid){
+      return false;
+    }
   }
 
   /*
-   * Using the condition in the predicate ensures that spurious wakeups with a valid
-   * but empty queue will not proceed, so only need to check for validity before proceeding.
+   * Push
    */
-  if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
-    return false;
-  }
+  push(value);
 
-  this->internal_push(value);
-
-  pthread_spin_unlock(&this->spinLock);
   return true;
 }
 
 template <typename T>
 bool MARC::ThreadSafeLockFreeQueue<T>::empty (void) const {
-  pthread_spin_lock(&this->spinLock);
-  auto empty = Base::m_queue.empty();
-  pthread_spin_unlock(&this->spinLock);
+  auto empty = (queue.size_approx() == 0);
 
   return empty;
 }
 
 template <typename T>
 int64_t MARC::ThreadSafeLockFreeQueue<T>::size (void) const {
-  pthread_spin_lock(&this->spinLock);
-  auto s = Base::m_queue.size();
-  pthread_spin_unlock(&this->spinLock);
-
+  auto s = queue.size_approx();
+ 
   return s;
 }
 
 template <typename T>
 void MARC::ThreadSafeLockFreeQueue<T>::clear (void) {
-  pthread_spin_lock(&this->spinLock);
-  while(!Base::m_queue.empty()) {
-    Base::m_queue.pop();
+  while(!empty()){
+    waitPop();
   }
 
-  pthread_spin_unlock(&this->spinLock);
   return ;
 }
 
 template <typename T>
 void MARC::ThreadSafeLockFreeQueue<T>::invalidate (void) {
-  pthread_spin_lock(&this->spinLock);
-
-  /*
-   * Check if the queue has been already invalidated.
-   */
-  if (!Base::m_valid){
-    pthread_spin_unlock(&this->spinLock);
-    return ;
-  }
 
   /*
    * Invalidate the queue.
    */
   Base::m_valid = false;
 
-  pthread_spin_unlock(&this->spinLock);
   return ;
 }
 
