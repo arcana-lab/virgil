@@ -70,15 +70,6 @@ namespace MARC {
       void clear (void) override ;
 
       /*
-       * Invalidate the queue.
-       * Used to ensure no conditions are being waited on in waitPop when
-       * a thread or the application is trying to exit.
-       * The queue is invalid after calling this method and it is an error
-       * to continue using a queue after this method has been called.
-       */
-      void invalidate(void) override ;
-
-      /*
        * Check whether or not the queue is empty.
        */
       bool empty (void) const override ;
@@ -211,17 +202,6 @@ void MARC::ThreadSafeLockFreeQueue<T>::clear (void) {
   while(!empty()){
     waitPop();
   }
-
-  return ;
-}
-
-template <typename T>
-void MARC::ThreadSafeLockFreeQueue<T>::invalidate (void) {
-
-  /*
-   * Invalidate the queue.
-   */
-  Base::m_valid = false;
 
   return ;
 }

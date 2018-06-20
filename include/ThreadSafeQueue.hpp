@@ -57,15 +57,6 @@ namespace MARC {
       virtual void clear (void) = 0;
 
       /*
-       * Invalidate the queue.
-       * Used to ensure no conditions are being waited on in waitPop when
-       * a thread or the application is trying to exit.
-       * The queue is invalid after calling this method and it is an error
-       * to continue using a queue after this method has been called.
-       */
-      virtual void invalidate(void) = 0;
-
-      /*
        * Check whether or not the queue is empty.
        */
       virtual bool empty (void) const = 0;
@@ -79,7 +70,16 @@ namespace MARC {
        * Returns whether or not this queue is valid.
        */
       virtual bool isValid(void) const;
-      
+
+      /*
+       * Invalidate the queue.
+       * Used to ensure no conditions are being waited on in waitPop when
+       * a thread or the application is trying to exit.
+       * The queue is invalid after calling this method and it is an error
+       * to continue using a queue after this method has been called.
+       */
+      virtual void invalidate(void) ;
+
       /*
        * Default constructor.
        */
@@ -116,6 +116,17 @@ namespace MARC {
 template <typename T>
 bool MARC::ThreadSafeQueue<T>::isValid (void) const {
   return m_valid;
+}
+
+template <typename T>
+void MARC::ThreadSafeQueue<T>::invalidate (void) {
+
+  /*
+   * Invalidate the queue.
+   */
+  m_valid = false;
+
+  return ;
 }
 
 template <typename T>
