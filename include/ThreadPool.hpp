@@ -142,8 +142,8 @@ MARC::ThreadPool::ThreadPool (
   :
   m_done{false},
   m_workQueue{},
-  codeToExecuteByTheDeconstructor{},
-  m_threads{}
+  m_threads{},
+  codeToExecuteByTheDeconstructor{}
   {
 
   /*
