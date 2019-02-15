@@ -15,6 +15,7 @@
 
 #include <sched.h>
 #include <pthread.h>
+#include <iostream>
 
 namespace MARC {
 
