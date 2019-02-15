@@ -61,6 +61,18 @@ namespace MARC {
       auto submit (Func&& func, Args&&... args);
 
       /*
+       * Submit a job to be run by the thread pool pinning the thread to one of the specified cores.
+       */
+      template <typename Func, typename... Args>
+      auto submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args);
+
+      /*
+       * Submit a job to be run by the thread pool pinning the thread to the specified core.
+       */
+      template <typename Func, typename... Args>
+      auto submitToCore (uint32_t core, Func&& func, Args&&... args);
+
+      /*
        * Submit a job to be run by the thread pool and detach it from the caller.
        */
       template <typename Func, typename... Args>
@@ -103,6 +115,11 @@ namespace MARC {
       ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
       bool extendible;
       mutable std::mutex extendingMutex;
+
+      /*
+       * Expand the pool if possible and necessary.
+       */
+      void expandPool (void);
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
@@ -198,19 +215,76 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
   m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
 
   /*
-   * Check if we need to spawn new threads.
+   * Expand the pool if possible and necessary.
    */
-  if (!this->extendible){
-     return result;
-  }
-  if (this->numberOfIdleThreads() < this->m_workQueue.size()){
+  this->expandPool();
 
-    /*
-     * Spawn new threads.
-     */
-    std::lock_guard<std::mutex> lock{this->extendingMutex};
-    this->newThreads(2);
-  }
+  return result;
+}
+  
+template <typename Func, typename... Args>
+auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args){
+
+  /*
+   * Making the task.
+   */
+  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+  using ResultType = std::result_of_t<decltype(boundTask)()>;
+  using PackagedTask = std::packaged_task<ResultType()>;
+  using TaskType = ThreadTask<PackagedTask>;
+  PackagedTask task{std::move(boundTask)};
+
+  /*
+   * Create the future.
+   */
+  TaskFuture<ResultType> result{task.get_future()};
+  
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<TaskType>(cores, std::move(task)));
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
+
+  return result;
+}
+
+template <typename Func, typename... Args>
+auto MARC::ThreadPool::submitToCore (uint32_t core, Func&& func, Args&&... args){
+
+  /*
+   * Making the task.
+   */
+  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
+  using ResultType = std::result_of_t<decltype(boundTask)()>;
+  using PackagedTask = std::packaged_task<ResultType()>;
+  using TaskType = ThreadTask<PackagedTask>;
+  PackagedTask task{std::move(boundTask)};
+
+  /*
+   * Create the future.
+   */
+  TaskFuture<ResultType> result{task.get_future()};
+
+  /*
+   * Set the affinity.
+   */
+  cpu_set_t cores;
+  CPU_ZERO(&cores);
+  CPU_SET(core, &cores);
+
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<TaskType>(cores, std::move(task)));
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
 
   return result;
 }
@@ -231,6 +305,11 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
    * Submit the task.
    */
   m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
 
   return ;
 }
@@ -317,6 +396,32 @@ std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
   auto s = this->m_workQueue.size();
 
   return s;
+}
+
+void MARC::ThreadPool::expandPool (void) {
+
+  /*
+   * Check whether we are allow to expand the pool or not.
+   */
+  if (!this->extendible){
+     return ;
+  }
+
+  /*
+   * We are allow to expand the pool.
+   *
+   * Check whether we should expand the pool.
+   */
+  if (this->numberOfIdleThreads() < this->m_workQueue.size()){
+
+    /*
+     * Spawn new threads.
+     */
+    std::lock_guard<std::mutex> lock{this->extendingMutex};
+    this->newThreads(2);
+  }
+
+  return ;
 }
 
 MARC::ThreadPool::~ThreadPool (void){

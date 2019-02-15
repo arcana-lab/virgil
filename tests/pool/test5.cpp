@@ -27,11 +27,8 @@ int main (int argc, char *argv[]){
    * Submit jobs.
    */
   std::vector<MARC::TaskFuture<double>> results;
-  cpu_set_t cores;
-  CPU_ZERO(&cores);
-  CPU_SET(2, &cores);
   for (auto i=0; i < tasks; i++){
-    results.push_back(pool.submitToCores(cores, myF, iters));
+    results.push_back(pool.submitToCore(2, myF, iters));
   }
 
   return 0;

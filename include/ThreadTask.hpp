@@ -13,6 +13,9 @@
  */
 #pragma once
 
+#include <sched.h>
+#include <pthread.h>
+
 namespace MARC {
 
   /*
@@ -57,9 +60,10 @@ namespace MARC {
     public:
 
       /*
-       * Constructor.
+       * Constructors.
        */
       ThreadTask (Func&& func);
+      ThreadTask (cpu_set_t coresToUse, Func&& func);
 
       /*
        * Default moving operation.
@@ -81,22 +85,56 @@ namespace MARC {
       /*
        * Run the task.
        */
-      void execute() override ;
+      void execute (void) override ;
 
     private:
       Func m_func;
+      cpu_set_t cores;
+      bool useAffinity;
   };
 }
 
 template <typename Func>
 MARC::ThreadTask<Func>::ThreadTask (Func&& func)
-  :m_func{std::move(func)}
+  :
+  m_func{std::move(func)},
+  useAffinity{false}
+  {
+  return ;
+}
+
+template <typename Func>
+MARC::ThreadTask<Func>::ThreadTask (cpu_set_t coresToUse, Func&& func)
+  :
+  m_func{std::move(func)},
+  cores{coresToUse},
+  useAffinity{true}
   {
   return ;
 }
 
 template <typename Func>
 void MARC::ThreadTask<Func>::execute (void){
+
+  /*
+   * Check if we have been asked to set the affinity of the thread that will run the task.
+   */
+  if (useAffinity){
+
+    /*
+     * Set the thread affinity.
+     */
+    auto self = pthread_self();
+    auto exitCode = pthread_setaffinity_np(self, sizeof(cpu_set_t), &(this->cores));
+    if (exitCode != 0) {
+      std::cerr << "ThreadPool: Error calling pthread_setaffinity_np: " << exitCode << std::endl;
+      abort();
+    }
+  }
+
+  /*
+   * Run
+   */
   this->m_func();
 
   return ;
