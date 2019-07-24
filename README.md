@@ -12,7 +12,7 @@ We hope it will be useful for other people as well.
 
 
 ## Logo
-![alt text](https://raw.githubusercontent.com/scampanoni/threadpool/master/figs/Virgil.jpg)
+![alt text](https://github.com/scampanoni/threadpool/blob/master/figs/Virgil.jpg)
 
 Virgil is the name of our cat we have taken home from the [Gifford cat shelter](http://www.giffordcatshelter.org) just before moving from Boston to Chicago.
 
