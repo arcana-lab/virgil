@@ -22,18 +22,18 @@ double work0 (double v, uint64_t innerIters){
   return v;
 }
 
-double parallelizedLoopBaseline (uint64_t startIV, uint64_t iters, volatile double v, uint64_t innerIters){
-  auto v0 = v;
-  auto v1 = v;
+double parallelizedLoopBaseline (uint64_t startIV, uint64_t iters, volatile double v[], uint64_t innerIters, std::uint32_t numberOfSequentialSegments){
+  double tot = 0;
   for (auto i=startIV; i < iters; i++){
-    v0 = work0(v0, innerIters);
-    v1 = work0(v1, innerIters);
+    for (auto j=0; j < numberOfSequentialSegments; j++){
+      tot += work0(v[j], innerIters);
+    }
   }
 
-  return v0 + v1;
+  return tot;
 }
 
-void parallelizedLoop (void *ssArrayPast, void *ssArrayFuture, uint64_t startIV, uint64_t iters, uint64_t threads, volatile uint64_t *theLoopIsOver, double v[], uint64_t innerIters, std::uint32_t numberOfSequentialSegments){
+double parallelizedLoop (void *ssArrayPast, void *ssArrayFuture, uint64_t startIV, uint64_t iters, uint64_t threads, volatile uint64_t *theLoopIsOver, double v[], uint64_t innerIters, std::uint32_t numberOfSequentialSegments){
 
   /*
    * Compute pointers to spinlocks.
@@ -54,13 +54,14 @@ void parallelizedLoop (void *ssArrayPast, void *ssArrayFuture, uint64_t startIV,
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   #endif
 
+  double tot = 0;
   for (auto i=startIV; i < iters; i += threads){
     for (auto ssID = 0 ; ssID < numberOfSequentialSegments; ssID++){
 
       /*
        * Parallel segment.
        */
-      v[ssID] = work0(v[ssID], innerIters);
+      tot += work0(v[ssID], innerIters);
 
       /*
        * Sequential segment.
@@ -82,7 +83,7 @@ void parallelizedLoop (void *ssArrayPast, void *ssArrayFuture, uint64_t startIV,
   pthread_spin_unlock(&globalArray);
   #endif 
 
-  return ;
+  return tot;
 }
 
 void HELIX_helperThread (void *ssArray, std::uint32_t numOfsequentialSegments, volatile uint64_t *theLoopIsOver){
@@ -131,19 +132,40 @@ int main (int argc, char *argv[]){
   /*
    * Fetch the inputs.
    */
-  if (argc < 5){
-    std::cerr << "USAGE: " << argv[0] << " ITERS THREADS NUMBER_OF_SSS PAUSES_HELPER_THREADS" << std::endl;
+  if (argc < 7){
+    std::cerr << "USAGE: " << argv[0] << " ITERS THREADS NUMBER_OF_SSS BASELINE(0|1) HELPER_THREADS(0|1) PAUSES_HELPER_THREADS" << std::endl;
     return 1;
   }
   auto iters = atoi(argv[1]);
   auto threads = (std::uint32_t) atoi(argv[2]);
   auto numOfsequentialSegments = std::uint32_t(atoi(argv[3]));
-  pauses = (std::uint32_t) atoi(argv[4]);
+  auto baseline = bool(atoi(argv[4]));
+  auto helperThreads = bool(atoi(argv[5]));
+  pauses = std::uint32_t(atoi(argv[6]));
+  std::cout << "Iterations      : " << iters << std::endl;
+  std::cout << "Baseline        : " << baseline << std::endl;
+  std::cout << "SSs             : " << numOfsequentialSegments << std::endl;
+  if (!baseline){
+    std::cout << "Threads         : " << threads << std::endl;
+    std::cout << "Helper threads  : " << helperThreads << std::endl;
+    std::cout << "Pauses          : " << pauses << std::endl;
+  }
 
-  #ifdef BASELINE
-  std::cerr << parallelizedLoopBaseline(0, iters, 3.5432, 100);
-  return 0;
-  #endif
+  /*
+   * Set the initial values.
+   */
+  auto values = new double[numOfsequentialSegments];
+  for (auto i=0; i < numOfsequentialSegments; i++){
+    values[i] = 3.4514 * (rand() % 10);
+  }
+
+  /*
+   * Run the baseline.
+   */
+  if (baseline){
+    std::cout << parallelizedLoopBaseline(0, iters, values, 100, numOfsequentialSegments) << std::endl;
+    return 0;
+  }
 
   /*
    * Prepare the memory.
@@ -198,19 +220,12 @@ int main (int argc, char *argv[]){
   MARC::ThreadPool pool{true, std::thread::hardware_concurrency()};
 
   /*
-   * Set the initial values.
-   */
-  auto values = new double[numOfsequentialSegments];
-  for (auto i=0; i < numOfsequentialSegments; i++){
-    values[i] = 3.4514 * (rand() % 10);
-  }
-
-  /*
    * Submit jobs.
    */
   volatile uint64_t loopIsOverFlag = 0;
   cpu_set_t cores;
-  std::vector<MARC::TaskFuture<void>> results;
+  std::vector<MARC::TaskFuture<double>> results;
+  std::vector<MARC::TaskFuture<void>> voidResults;
   for (auto i=0; i < threads; i++){
 
     /*
@@ -250,15 +265,17 @@ int main (int argc, char *argv[]){
     /*
      * Launch the helper thread.
      */
-    continue ;
+    if (!helperThreads){
+      continue ;
+    }
     CPU_SET(physicalCore + 1, &cores);
-    /*results.push_back(pool.submitToCores(
+    voidResults.push_back(pool.submitToCores(
       cores,
       HELIX_helperThread, 
       ssArrayPast,
       numOfsequentialSegments,
       &loopIsOverFlag
-    ));*/
+    ));
   }
 
   return 0;
