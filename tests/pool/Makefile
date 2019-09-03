@@ -42,6 +42,6 @@ run: $(PROGRAM)
 	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
 
 clean:
-	rm -f *.o $(PROGRAMS) perf.*
+	rm -f *.o $(PROGRAMS) perf.* *.txt
 
 .PHONY: clean run
