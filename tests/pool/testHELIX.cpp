@@ -132,8 +132,8 @@ int main (int argc, char *argv[]){
   /*
    * Fetch the inputs.
    */
-  if (argc < 7){
-    std::cerr << "USAGE: " << argv[0] << " ITERS THREADS NUMBER_OF_SSS BASELINE(0|1) HELPER_THREADS(0|1) PAUSES_HELPER_THREADS" << std::endl;
+  if (argc < 8){
+    std::cerr << "USAGE: " << argv[0] << " ITERS THREADS NUMBER_OF_SSS BASELINE(0|1) HELPER_THREADS(0|1) PAUSES_HELPER_THREADS SCC_ITERS" << std::endl;
     return 1;
   }
   auto iters = atoi(argv[1]);
@@ -142,9 +142,11 @@ int main (int argc, char *argv[]){
   auto baseline = bool(atoi(argv[4]));
   auto helperThreads = bool(atoi(argv[5]));
   pauses = std::uint32_t(atoi(argv[6]));
+  auto sccIters = std::uint32_t(atoi(argv[7]));
   std::cout << "Iterations      : " << iters << std::endl;
   std::cout << "Baseline        : " << baseline << std::endl;
   std::cout << "SSs             : " << numOfsequentialSegments << std::endl;
+  std::cout << "SCC iterations  : " << sccIters << std::endl;
   if (!baseline){
     std::cout << "Threads         : " << threads << std::endl;
     std::cout << "Helper threads  : " << helperThreads << std::endl;
@@ -163,7 +165,7 @@ int main (int argc, char *argv[]){
    * Run the baseline.
    */
   if (baseline){
-    std::cout << parallelizedLoopBaseline(0, iters, values, 100, numOfsequentialSegments) << std::endl;
+    std::cout << parallelizedLoopBaseline(0, iters, values, sccIters, numOfsequentialSegments) << std::endl;
     return 0;
   }
 
@@ -258,7 +260,7 @@ int main (int argc, char *argv[]){
       (uint64_t)i, (uint64_t)iters, (uint64_t)threads,
       &loopIsOverFlag,
       values,
-      100,
+      sccIters,
       numOfsequentialSegments
     ));
 
