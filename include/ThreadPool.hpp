@@ -52,6 +52,9 @@ namespace MARC {
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
 
+      /*
+       * Add code to execute when the threadpool is destroyed.
+       */
       void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
 
       /*
@@ -221,7 +224,7 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
 
   return result;
 }
-  
+
 template <typename Func, typename... Args>
 auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args){
 
