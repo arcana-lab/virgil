@@ -32,10 +32,11 @@ int main (int argc, char *argv[]){
   }
 
   /*
-   * Return will force the main thread to wait for the completion of all tasks submitted.
-   *
-   * In more detail, return will call the destructor of the vector @results, which will call the @get API on all the futures stored inside.
-   * Invoking @get forces the main thread to wait for the completion of the related task submitted.
+   * Wait for all jobs.
    */
+  for (auto f : results){
+    f.get();
+  }
+
   return 0;
 }
