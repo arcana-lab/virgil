@@ -34,7 +34,7 @@ int main (int argc, char *argv[]){
   /*
    * Wait for all jobs.
    */
-  for (auto f : results){
+  for (auto& f : results){
     f.get();
   }
 
