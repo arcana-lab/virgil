@@ -16,6 +16,7 @@
 
 #include "ThreadSafeMutexQueue.hpp"
 #include "ThreadTask.hpp"
+#include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
 
 #include <unistd.h>
@@ -80,6 +81,14 @@ namespace MARC {
        */
       template <typename Func, typename... Args>
       void submitAndDetach (Func&& func, Args&&... args) ;
+
+      /*
+       * Submit a job to be run by the thread pool and detach it from the caller.
+       */
+      void submitAndDetachCFunction (
+        void (*f) (void *args),
+        void *args
+        );
 
       /*
        * Return the number of threads that are currently idle.
@@ -308,6 +317,24 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
    * Submit the task.
    */
   m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
+
+  return ;
+}
+
+void MARC::ThreadPool::submitAndDetachCFunction (
+  void (*f) (void *args),
+  void *args
+  ){
+
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<ThreadCTask>(f, args));
 
   /*
    * Expand the pool if possible and necessary.
