@@ -31,11 +31,17 @@ namespace MARC {
        * Constructors.
        */
       ThreadCTask (
+        uint64_t ID
+        );
+
+      ThreadCTask (
+        uint64_t ID,
         void (*f) (void *args),
         void *args
         );
 
       ThreadCTask (
+        uint64_t ID,
         cpu_set_t coresToUse, 
         void (*f) (void *args),
         void *args
@@ -63,28 +69,43 @@ namespace MARC {
        */
       void execute (void) override ;
 
+      std::uint64_t getID (void) const ;
+
+      void setFunction (void (*f) (void *args), void *args);
+
     private:
       void (*m_func) (void *args);
       void *args;
       cpu_set_t cores;
       bool useAffinity;
+      uint64_t ID;
   };
 
 }
 
+MARC::ThreadCTask::ThreadCTask (uint64_t ID)
+  : useAffinity{false}
+  , ID{ID}
+{
+  return ;
+}
+
 MARC::ThreadCTask::ThreadCTask (
+  uint64_t ID,
   void (*f) (void *args),
   void *args
   )
   :
-  m_func{f},
-  args{args},
-  useAffinity{false}
+    m_func{f}
+  , args{args}
+  , useAffinity{false}
+  , ID{ID}
   {
   return ;
 }
 
 MARC::ThreadCTask::ThreadCTask (
+  uint64_t ID,
   cpu_set_t coresToUse, 
   void (*f) (void *args),
   void *args
@@ -94,6 +115,7 @@ MARC::ThreadCTask::ThreadCTask (
   args{args},
   cores{coresToUse},
   useAffinity{true}
+  , ID{ID}
   {
   return ;
 }
@@ -122,4 +144,13 @@ void MARC::ThreadCTask::execute (void){
   (*this->m_func)(this->args);
 
   return ;
+}
+      
+std::uint64_t MARC::ThreadCTask::getID (void) const {
+  return this->ID;
+}
+      
+void MARC::ThreadCTask::setFunction (void (*f) (void *args), void *args){
+  this->m_func = f;
+  this->args = args;
 }

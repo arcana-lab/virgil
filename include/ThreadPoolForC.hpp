@@ -15,11 +15,13 @@
 #pragma once
 
 #include "ThreadSafeMutexQueue.hpp"
+#include "ThreadSafeSpinLockQueue.hpp"
 #include "ThreadTask.hpp"
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
 #include "ThreadPoolInterface.hpp"
 
+#include <assert.h>
 #include <unistd.h>
 #include <algorithm>
 #include <atomic>
@@ -83,6 +85,9 @@ namespace MARC {
       ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
 
     private:
+      std::vector<ThreadCTask *> memoryPool;
+      std::vector<bool> memoryPoolAvailability;
+      mutable pthread_spinlock_t memoryPoolLock;
 
       /*
        * Object fields.
@@ -122,6 +127,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   :
     cWorkQueue{}
   {
+  pthread_spin_init(&this->memoryPoolLock, 0);
 
   /*
    * Start threads.
@@ -143,9 +149,28 @@ void MARC::ThreadPoolForC::submitAndDetachCFunction (
   ){
 
   /*
+   * Fetch the memory.
+   */
+  ThreadCTask *cTask = nullptr;
+  pthread_spin_lock(&this->memoryPoolLock);
+  auto poolSize = this->memoryPoolAvailability.size();
+  for (auto i = 0; i < poolSize; i++){
+    if (this->memoryPoolAvailability[i]){
+      cTask = this->memoryPool[i];
+      this->memoryPoolAvailability[i] = false;
+    }
+  }
+  if (cTask == nullptr){
+    cTask = new ThreadCTask(poolSize);
+    this->memoryPool.push_back(cTask);
+    this->memoryPoolAvailability.push_back(false);
+  }
+  pthread_spin_unlock(&this->memoryPoolLock);
+  cTask->setFunction(f, args);
+
+  /*
    * Submit the task.
    */
-  auto cTask = new ThreadCTask(f, args);
   this->cWorkQueue.push(cTask);
 
   /*
@@ -166,7 +191,20 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability){
       pTask->execute();
     }
     if (pTask){
-      delete pTask;
+
+      /*
+       * Fetch the task ID.
+       */
+      auto taskID = pTask->getID();
+
+      /*
+       * Set the task memory as available.
+       */
+      pthread_spin_lock(&this->memoryPoolLock);
+      assert(taskID < this->memoryPool.size());
+      assert(!this->memoryPoolAvailability[taskID]);
+      this->memoryPoolAvailability[taskID] = true;
+      pthread_spin_unlock(&this->memoryPoolLock);
     }
   }
 
