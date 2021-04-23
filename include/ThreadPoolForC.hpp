@@ -18,7 +18,6 @@
 #include "ThreadTask.hpp"
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
-#include "ThreadPoolInterface.hpp"
 
 #include <unistd.h>
 #include <algorithm>
@@ -36,7 +35,7 @@ namespace MARC {
   /*
    * Thread pool.
    */
-  class ThreadPool : public ThreadPoolInterface {
+  class ThreadPool : ThreadPoolInterface {
     public:
 
       /*
@@ -53,6 +52,11 @@ namespace MARC {
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
+
+      /*
+       * Add code to execute when the threadpool is destroyed.
+       */
+      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
 
       /*
        * Submit a job to be run by the thread pool.
@@ -79,9 +83,22 @@ namespace MARC {
       void submitAndDetach (Func&& func, Args&&... args) ;
 
       /*
+       * Submit a job to be run by the thread pool and detach it from the caller.
+       */
+      void submitAndDetachCFunction (
+        void (*f) (void *args),
+        void *args
+        );
+
+      /*
+       * Return the number of threads that are currently idle.
+       */
+      std::uint32_t numberOfIdleThreads (void) const ;
+
+      /*
        * Return the number of tasks that did not start executing yet.
        */
-      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const override ;
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const ;
 
       /*
        * Destructor.
@@ -103,17 +120,34 @@ namespace MARC {
       /*
        * Object fields.
        */
+      std::atomic_bool m_done;
       ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>> m_workQueue;
+      ThreadSafeMutexQueue<ThreadCTask *> cWorkQueue;
+      std::vector<std::thread> m_threads;
+      std::vector<std::atomic_bool *> threadAvailability;
+      ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
+      bool extendible;
+      mutable std::mutex extendingMutex;
+
+      /*
+       * Expand the pool if possible and necessary.
+       */
+      void expandPool (void);
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability) override ;
+      void worker (std::atomic_bool *availability);
+
+      /*
+       * Start new threads.
+       */
+      void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
        * Invalidates the queue and joins all running threads.
        */
-      void destroy (void) override ;
+      void destroy (void);
   };
 
 }
@@ -136,7 +170,11 @@ MARC::ThreadPool::ThreadPool (
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-  m_workQueue{}
+  m_done{false},
+  m_workQueue{},
+  cWorkQueue{},
+  m_threads{},
+  codeToExecuteByTheDeconstructor{}
   {
 
   /*
@@ -158,6 +196,12 @@ MARC::ThreadPool::ThreadPool (
   if (codeToExecuteAtDeconstructor != nullptr){
     this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
   }
+
+  return ;
+}
+
+void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
+  this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
 
   return ;
 }
@@ -284,6 +328,24 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   return ;
 }
 
+void MARC::ThreadPool::submitAndDetachCFunction (
+  void (*f) (void *args),
+  void *args
+  ){
+
+  /*
+   * Submit the task.
+   */
+  m_workQueue.push(std::make_unique<ThreadCTask>(f, args));
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
+
+  return ;
+}
+
 void MARC::ThreadPool::worker (std::atomic_bool *availability){
 
   while(!m_done) {
@@ -293,6 +355,24 @@ void MARC::ThreadPool::worker (std::atomic_bool *availability){
       (*availability) = false;
       pTask->execute();
     }
+  }
+
+  return ;
+}
+
+void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
+  for (auto i = 0; i < newThreadsToGenerate; i++){
+
+    /*
+     * Create the availability flag.
+     */
+    auto flag = new std::atomic_bool(true);
+    this->threadAvailability.push_back(flag);
+
+    /*
+     * Create a new thread.
+     */
+    this->m_threads.emplace_back(&ThreadPool::worker, this, flag);
   }
 
   return ;
@@ -331,10 +411,50 @@ void MARC::ThreadPool::destroy (void){
   return ;
 }
 
+std::uint32_t MARC::ThreadPool::numberOfIdleThreads (void) const {
+  std::uint32_t n = 0;
+
+  for (auto i=0; i < this->m_threads.size(); i++){
+    auto isThreadAvailable = this->threadAvailability[i];
+    if (*isThreadAvailable){
+      n++;
+    }
+  }
+
+  return n;
+}
+
 std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  auto s = this->m_workQueue.size();
+  auto s = this->m_workQueue.size() + this->cWorkQueue.size();
 
   return s;
+}
+
+void MARC::ThreadPool::expandPool (void) {
+
+  /*
+   * Check whether we are allow to expand the pool or not.
+   */
+  if (!this->extendible){
+     return ;
+  }
+
+  /*
+   * We are allow to expand the pool.
+   *
+   * Check whether we should expand the pool.
+   */
+  auto totalWaitingTasks = this->m_workQueue.size() + this->cWorkQueue.size();
+  if (this->numberOfIdleThreads() < totalWaitingTasks){
+
+    /*
+     * Spawn new threads.
+     */
+    std::lock_guard<std::mutex> lock{this->extendingMutex};
+    this->newThreads(2);
+  }
+
+  return ;
 }
 
 MARC::ThreadPool::~ThreadPool (void){
