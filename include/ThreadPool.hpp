@@ -136,13 +136,8 @@ MARC::ThreadPool::ThreadPool (
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-  m_workQueue{}
+    m_workQueue{}
   {
-
-  /*
-   * Set whether or not the thread pool can dynamically change its number of threads.
-   */
-  this->extendible = extendible;
 
   /*
    * Start threads.
@@ -153,10 +148,6 @@ MARC::ThreadPool::ThreadPool (
   } catch(...) {
     destroy();
     throw;
-  }
-
-  if (codeToExecuteAtDeconstructor != nullptr){
-    this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
   }
 
   return ;
@@ -284,8 +275,7 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   return ;
 }
 
-void MARC::ThreadPool::worker (std::atomic_bool *availability){
-
+void MARC::ThreadPool::worker (std::atomic_bool *availability) {
   while(!m_done) {
     (*availability) = true;
     std::unique_ptr<IThreadTask> pTask{nullptr};
