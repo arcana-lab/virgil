@@ -382,15 +382,7 @@ void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
 }
 
 void MARC::ThreadPool::destroy (void){
-
-  /*
-   * Execute the user code.
-   */
-  while (codeToExecuteByTheDeconstructor.size() > 0){
-    std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code);
-    code();
-  }
+  MARC::ThreadPoolInterface::destroy();
 
   /*
    * Signal threads to quite.
