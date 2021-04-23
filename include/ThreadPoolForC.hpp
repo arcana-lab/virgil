@@ -9,7 +9,7 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  *
- * The ThreadPool class.
+ * The ThreadPoolForC class.
  * Keeps a set of threads constantly waiting to execute incoming jobs.
  */
 #pragma once
@@ -18,6 +18,7 @@
 #include "ThreadTask.hpp"
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
+#include "ThreadPoolInterface.hpp"
 
 #include <unistd.h>
 #include <algorithm>
@@ -35,7 +36,7 @@ namespace MARC {
   /*
    * Thread pool.
    */
-  class ThreadPool : ThreadPoolInterface {
+  class ThreadPoolForC : public ThreadPoolInterface {
     public:
 
       /*
@@ -43,44 +44,15 @@ namespace MARC {
        *
        * By default, the thread pool is not extendible and it creates at least one thread.
        */
-      ThreadPool(void);
+      ThreadPoolForC(void);
 
       /*
        * Constructor.
        */
-      explicit ThreadPool (
+      explicit ThreadPoolForC (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
-
-      /*
-       * Add code to execute when the threadpool is destroyed.
-       */
-      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
-
-      /*
-       * Submit a job to be run by the thread pool.
-       */
-      template <typename Func, typename... Args>
-      auto submit (Func&& func, Args&&... args);
-
-      /*
-       * Submit a job to be run by the thread pool pinning the thread to one of the specified cores.
-       */
-      template <typename Func, typename... Args>
-      auto submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args);
-
-      /*
-       * Submit a job to be run by the thread pool pinning the thread to the specified core.
-       */
-      template <typename Func, typename... Args>
-      auto submitToCore (uint32_t core, Func&& func, Args&&... args);
-
-      /*
-       * Submit a job to be run by the thread pool and detach it from the caller.
-       */
-      template <typename Func, typename... Args>
-      void submitAndDetach (Func&& func, Args&&... args) ;
 
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
@@ -91,69 +63,47 @@ namespace MARC {
         );
 
       /*
-       * Return the number of threads that are currently idle.
-       */
-      std::uint32_t numberOfIdleThreads (void) const ;
-
-      /*
        * Return the number of tasks that did not start executing yet.
        */
-      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const ;
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const override ;
 
       /*
        * Destructor.
        */
-      ~ThreadPool(void);
+      ~ThreadPoolForC(void);
 
       /*
        * Non-copyable.
        */
-      ThreadPool(const ThreadPool& rhs) = delete;
+      ThreadPoolForC(const ThreadPoolForC& rhs) = delete;
 
       /*
        * Non-assignable.
        */
-      ThreadPool& operator=(const ThreadPool& rhs) = delete;
+      ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
 
     private:
 
       /*
        * Object fields.
        */
-      std::atomic_bool m_done;
-      ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>> m_workQueue;
       ThreadSafeMutexQueue<ThreadCTask *> cWorkQueue;
-      std::vector<std::thread> m_threads;
-      std::vector<std::atomic_bool *> threadAvailability;
-      ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
-      bool extendible;
-      mutable std::mutex extendingMutex;
-
-      /*
-       * Expand the pool if possible and necessary.
-       */
-      void expandPool (void);
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability);
-
-      /*
-       * Start new threads.
-       */
-      void newThreads (std::uint32_t newThreadsToGenerate);
+      void worker (std::atomic_bool *availability) override ;
 
       /*
        * Invalidates the queue and joins all running threads.
        */
-      void destroy (void);
+      void destroy (void) override ;
   };
 
 }
 
-MARC::ThreadPool::ThreadPool(void) 
-  : ThreadPool{false} 
+MARC::ThreadPoolForC::ThreadPoolForC(void) 
+  : ThreadPoolForC{false} 
   {
 
   /*
@@ -165,22 +115,13 @@ MARC::ThreadPool::ThreadPool(void)
   return ;
 }
 
-MARC::ThreadPool::ThreadPool (
+MARC::ThreadPoolForC::ThreadPoolForC (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-  m_done{false},
-  m_workQueue{},
-  cWorkQueue{},
-  m_threads{},
-  codeToExecuteByTheDeconstructor{}
+    cWorkQueue{}
   {
-
-  /*
-   * Set whether or not the thread pool can dynamically change its number of threads.
-   */
-  this->extendible = extendible;
 
   /*
    * Start threads.
@@ -193,142 +134,10 @@ MARC::ThreadPool::ThreadPool (
     throw;
   }
 
-  if (codeToExecuteAtDeconstructor != nullptr){
-    this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-  }
-
   return ;
 }
 
-void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
-  this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-
-  return ;
-}
-
-template <typename Func, typename... Args>
-auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
-
-  /*
-   * Making the task.
-   */
-  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-  using ResultType = std::result_of_t<decltype(boundTask)()>;
-  using PackagedTask = std::packaged_task<ResultType()>;
-  using TaskType = ThreadTask<PackagedTask>;
-  PackagedTask task{std::move(boundTask)};
-
-  /*
-   * Create the future.
-   */
-  TaskFuture<ResultType> result{task.get_future()};
-  
-  /*
-   * Submit the task.
-   */
-  m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return result;
-}
-
-template <typename Func, typename... Args>
-auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args){
-
-  /*
-   * Making the task.
-   */
-  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-  using ResultType = std::result_of_t<decltype(boundTask)()>;
-  using PackagedTask = std::packaged_task<ResultType()>;
-  using TaskType = ThreadTask<PackagedTask>;
-  PackagedTask task{std::move(boundTask)};
-
-  /*
-   * Create the future.
-   */
-  TaskFuture<ResultType> result{task.get_future()};
-  
-  /*
-   * Submit the task.
-   */
-  m_workQueue.push(std::make_unique<TaskType>(cores, std::move(task)));
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return result;
-}
-
-template <typename Func, typename... Args>
-auto MARC::ThreadPool::submitToCore (uint32_t core, Func&& func, Args&&... args){
-
-  /*
-   * Making the task.
-   */
-  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-  using ResultType = std::result_of_t<decltype(boundTask)()>;
-  using PackagedTask = std::packaged_task<ResultType()>;
-  using TaskType = ThreadTask<PackagedTask>;
-  PackagedTask task{std::move(boundTask)};
-
-  /*
-   * Create the future.
-   */
-  TaskFuture<ResultType> result{task.get_future()};
-
-  /*
-   * Set the affinity.
-   */
-  cpu_set_t cores;
-  CPU_ZERO(&cores);
-  CPU_SET(core, &cores);
-
-  /*
-   * Submit the task.
-   */
-  m_workQueue.push(std::make_unique<TaskType>(cores, std::move(task)));
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return result;
-}
-
-template <typename Func, typename... Args>
-void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
-
-  /*
-   * Making the task.
-   */
-  auto boundTask = std::bind(std::forward<Func>(func), std::forward<Args>(args)...);
-  using ResultType = std::result_of_t<decltype(boundTask)()>;
-  using PackagedTask = std::packaged_task<ResultType()>;
-  using TaskType = ThreadTask<PackagedTask>;
-  PackagedTask task{std::move(boundTask)};
-
-  /*
-   * Submit the task.
-   */
-  m_workQueue.push(std::make_unique<TaskType>(std::move(task)));
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return ;
-}
-
-void MARC::ThreadPool::submitAndDetachCFunction (
+void MARC::ThreadPoolForC::submitAndDetachCFunction (
   void (*f) (void *args),
   void *args
   ){
@@ -336,7 +145,8 @@ void MARC::ThreadPool::submitAndDetachCFunction (
   /*
    * Submit the task.
    */
-  m_workQueue.push(std::make_unique<ThreadCTask>(f, args));
+  auto cTask = new ThreadCTask(f, args);
+  this->cWorkQueue.push(cTask);
 
   /*
    * Expand the pool if possible and necessary.
@@ -346,54 +156,31 @@ void MARC::ThreadPool::submitAndDetachCFunction (
   return ;
 }
 
-void MARC::ThreadPool::worker (std::atomic_bool *availability){
+void MARC::ThreadPoolForC::worker (std::atomic_bool *availability){
 
   while(!m_done) {
     (*availability) = true;
-    std::unique_ptr<IThreadTask> pTask{nullptr};
-    if(m_workQueue.waitPop(pTask)) {
+    ThreadCTask *pTask = nullptr;
+    if(this->cWorkQueue.waitPop(pTask)) {
       (*availability) = false;
       pTask->execute();
+    }
+    if (pTask){
+      delete pTask;
     }
   }
 
   return ;
 }
 
-void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
-  for (auto i = 0; i < newThreadsToGenerate; i++){
-
-    /*
-     * Create the availability flag.
-     */
-    auto flag = new std::atomic_bool(true);
-    this->threadAvailability.push_back(flag);
-
-    /*
-     * Create a new thread.
-     */
-    this->m_threads.emplace_back(&ThreadPool::worker, this, flag);
-  }
-
-  return ;
-}
-
-void MARC::ThreadPool::destroy (void){
-
-  /*
-   * Execute the user code.
-   */
-  while (codeToExecuteByTheDeconstructor.size() > 0){
-    std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code);
-    code();
-  }
+void MARC::ThreadPoolForC::destroy (void){
+  MARC::ThreadPoolInterface::destroy();
 
   /*
    * Signal threads to quite.
    */
   m_done = true;
-  m_workQueue.invalidate();
+  this->cWorkQueue.invalidate();
 
   /*
    * Join threads.
@@ -411,53 +198,13 @@ void MARC::ThreadPool::destroy (void){
   return ;
 }
 
-std::uint32_t MARC::ThreadPool::numberOfIdleThreads (void) const {
-  std::uint32_t n = 0;
-
-  for (auto i=0; i < this->m_threads.size(); i++){
-    auto isThreadAvailable = this->threadAvailability[i];
-    if (*isThreadAvailable){
-      n++;
-    }
-  }
-
-  return n;
-}
-
-std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  auto s = this->m_workQueue.size() + this->cWorkQueue.size();
+std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
+  auto s = this->cWorkQueue.size();
 
   return s;
 }
 
-void MARC::ThreadPool::expandPool (void) {
-
-  /*
-   * Check whether we are allow to expand the pool or not.
-   */
-  if (!this->extendible){
-     return ;
-  }
-
-  /*
-   * We are allow to expand the pool.
-   *
-   * Check whether we should expand the pool.
-   */
-  auto totalWaitingTasks = this->m_workQueue.size() + this->cWorkQueue.size();
-  if (this->numberOfIdleThreads() < totalWaitingTasks){
-
-    /*
-     * Spawn new threads.
-     */
-    std::lock_guard<std::mutex> lock{this->extendingMutex};
-    this->newThreads(2);
-  }
-
-  return ;
-}
-
-MARC::ThreadPool::~ThreadPool (void){
+MARC::ThreadPoolForC::~ThreadPoolForC (void){
   destroy();
 
   return ;
