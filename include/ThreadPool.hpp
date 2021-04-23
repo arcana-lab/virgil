@@ -122,6 +122,7 @@ namespace MARC {
        */
       std::atomic_bool m_done;
       ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>> m_workQueue;
+      ThreadSafeMutexQueue<ThreadCTask *> cWorkQueue;
       std::vector<std::thread> m_threads;
       std::vector<std::atomic_bool *> threadAvailability;
       ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
@@ -171,6 +172,7 @@ MARC::ThreadPool::ThreadPool (
   :
   m_done{false},
   m_workQueue{},
+  cWorkQueue{},
   m_threads{},
   codeToExecuteByTheDeconstructor{}
   {
@@ -423,7 +425,7 @@ std::uint32_t MARC::ThreadPool::numberOfIdleThreads (void) const {
 }
 
 std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  auto s = this->m_workQueue.size();
+  auto s = this->m_workQueue.size() + this->cWorkQueue.size();
 
   return s;
 }
@@ -442,7 +444,8 @@ void MARC::ThreadPool::expandPool (void) {
    *
    * Check whether we should expand the pool.
    */
-  if (this->numberOfIdleThreads() < this->m_workQueue.size()){
+  auto totalWaitingTasks = this->m_workQueue.size() + this->cWorkQueue.size();
+  if (this->numberOfIdleThreads() < totalWaitingTasks){
 
     /*
      * Spawn new threads.
