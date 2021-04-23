@@ -113,7 +113,7 @@ namespace MARC {
       /*
        * Invalidates the queue and joins all running threads.
        */
-      virtual void destroy (void) = 0;
+      virtual void destroy (void) ;
   };
 
 }
@@ -223,6 +223,20 @@ void MARC::ThreadPoolInterface::expandPool (void) {
      */
     std::lock_guard<std::mutex> lock{this->extendingMutex};
     this->newThreads(2);
+  }
+
+  return ;
+}
+
+void MARC::ThreadPoolInterface::destroy (void){
+
+  /*
+   * Execute the user code.
+   */
+  while (codeToExecuteByTheDeconstructor.size() > 0){
+    std::function<void ()> code;
+    codeToExecuteByTheDeconstructor.waitPop(code);
+    code();
   }
 
   return ;

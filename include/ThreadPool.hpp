@@ -299,15 +299,7 @@ void MARC::ThreadPool::worker (std::atomic_bool *availability){
 }
 
 void MARC::ThreadPool::destroy (void){
-
-  /*
-   * Execute the user code.
-   */
-  while (codeToExecuteByTheDeconstructor.size() > 0){
-    std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code);
-    code();
-  }
+  MARC::ThreadPoolInterface::destroy();
 
   /*
    * Signal threads to quite.
