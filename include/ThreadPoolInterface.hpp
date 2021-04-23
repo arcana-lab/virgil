@@ -103,7 +103,8 @@ namespace MARC {
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      virtual void worker (std::atomic_bool *availability) = 0;
+      virtual void worker (std::atomic_bool *availability) = 0 ;
+      void workerWrapper (std::atomic_bool *availability) ;
 
       /*
        * Start new threads.
@@ -146,17 +147,6 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
    */
   this->extendible = extendible;
 
-  /*
-   * Start threads.
-   */
-  try {
-    this->newThreads(numThreads);
-
-  } catch(...) {
-    destroy();
-    throw;
-  }
-
   if (codeToExecuteAtDeconstructor != nullptr){
     this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
   }
@@ -182,7 +172,7 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
     /*
      * Create a new thread.
      */
-    this->m_threads.emplace_back(&ThreadPoolInterface::worker, this, flag);
+    this->m_threads.emplace_back(&ThreadPoolInterface::workerWrapper, this, flag);
   }
 
   return ;
@@ -225,6 +215,11 @@ void MARC::ThreadPoolInterface::expandPool (void) {
     this->newThreads(2);
   }
 
+  return ;
+}
+
+void MARC::ThreadPoolInterface::workerWrapper (std::atomic_bool *availability){
+  this->worker(availability);
   return ;
 }
 

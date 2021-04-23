@@ -165,11 +165,6 @@ MARC::ThreadPool::ThreadPool (
   {
 
   /*
-   * Set whether or not the thread pool can dynamically change its number of threads.
-   */
-  this->extendible = extendible;
-
-  /*
    * Start threads.
    */
   try {
@@ -178,10 +173,6 @@ MARC::ThreadPool::ThreadPool (
   } catch(...) {
     destroy();
     throw;
-  }
-
-  if (codeToExecuteAtDeconstructor != nullptr){
-    this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
   }
 
   return ;
