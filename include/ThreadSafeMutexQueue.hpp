@@ -108,6 +108,7 @@ namespace MARC {
        */
       mutable std::mutex m_mutex;
       std::condition_variable empty_condition;
+      std::atomic<bool> isEmpty;
       std::condition_variable full_condition;
 
       /*
@@ -115,6 +116,7 @@ namespace MARC {
        */
       void internal_pushAndNotify(T& value);
       void internal_popAndNotify(T& out);
+      void internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock);
 
   };
 }
@@ -158,12 +160,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
     /*
      * Wait until the queue will be in a valid state and it will be not empty.
      */
-    empty_condition.wait(lock, 
-      [this]()
-      {
-        return !Base::m_queue.empty() || !Base::m_valid;
-      }
-    );
+    this->internal_waitWhileEmpty(lock);
   }
 
   /*
@@ -200,12 +197,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
     /*
      * Wait until the queue will be in a valid state and it will be not empty.
      */
-    empty_condition.wait(lock, 
-      [this]()
-      {
-        return !Base::m_queue.empty() || !Base::m_valid;
-      }
-    );
+    this->internal_waitWhileEmpty(lock);
   }
 
   /*
@@ -351,6 +343,18 @@ void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
    * Notify about the fact that the queue might be not full now.
    */
   full_condition.notify_one();
+
+  return ;
+}
+      
+template <typename T>
+void MARC::ThreadSafeMutexQueue<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
+  this->empty_condition.wait(lock, 
+    [this]()
+    {
+      return !Base::m_queue.empty() || !Base::m_valid;
+    }
+    );
 
   return ;
 }
