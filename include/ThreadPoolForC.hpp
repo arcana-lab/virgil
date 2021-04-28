@@ -59,7 +59,7 @@ namespace MARC {
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
        */
-      void submitAndDetachCFunction (
+      void submitAndDetach (
         void (*f) (void *args),
         void *args
         );
@@ -143,7 +143,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   return ;
 }
 
-void MARC::ThreadPoolForC::submitAndDetachCFunction (
+void MARC::ThreadPoolForC::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
