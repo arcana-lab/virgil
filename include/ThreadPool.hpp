@@ -16,7 +16,6 @@
 
 #include "ThreadSafeMutexQueue.hpp"
 #include "ThreadTask.hpp"
-#include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
 #include "ThreadPoolInterface.hpp"
 
