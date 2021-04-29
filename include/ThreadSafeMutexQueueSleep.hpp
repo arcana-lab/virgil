@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2019  Simone Campanoni
+ * Copyright 2017 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -14,10 +14,13 @@
  */
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <utility>
+#include <thread>  
+#include <chrono>
 
 #include "ThreadSafeQueue.hpp"
 
@@ -106,7 +109,6 @@ namespace MARC {
        * Fields
        */
       mutable std::mutex m_mutex;
-      std::condition_variable empty_condition;
       std::condition_variable full_condition;
 
       /*
@@ -300,7 +302,6 @@ void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
   /*
    * Notify
    */
-  empty_condition.notify_all();
   full_condition.notify_all();
 
   return ;
@@ -320,11 +321,6 @@ void MARC::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
    * Push the value to the queue.
    */
   this->internal_push(value);
-
-  /*
-   * Notify that the queue is not empty.
-   */
-  empty_condition.notify_one();
 
   return ;
 }
@@ -347,12 +343,22 @@ void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
       
 template <typename T>
 void MARC::ThreadSafeMutexQueue<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
-  this->empty_condition.wait(lock, 
-    [this]()
-    {
-      return !Base::m_queue.empty() || !Base::m_valid;
+  auto time = std::chrono::microseconds(1);
+  auto iterations = 0;
+  do {
+    lock.unlock();
+    iterations++;
+    switch (iterations){
+      case 100:
+        time = std::chrono::microseconds(100);
+        break ;
+      case 1000:
+        time = std::chrono::milliseconds(10);
+        break ;
     }
-    );
+    std::this_thread::sleep_for(time);
+    lock.lock();
+  } while (Base::m_queue.empty() && Base::m_valid);
 
   return ;
 }
