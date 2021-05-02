@@ -177,18 +177,15 @@ MARC::ThreadPool::ThreadPool (
   return ;
 }
 
-void MARC::ThreadPool::addQueue() {
-  //m_workQueues.emplace_back(ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>>());
-}
-
 template <typename Func, typename... Args>
 std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
-  if (m_workQueues.size() == 0) {
-    //this->addQueue();
-  }
   return rand() % m_workQueues.size();
 }
 
+template <typename Func, typename... Args>
+void MARC::ThreadPool::enqueueJob (std::uint32_t queueIndex, Func&& func, Args&&... args) {
+  return;
+}
 
 
 template <typename Func, typename... Args>
