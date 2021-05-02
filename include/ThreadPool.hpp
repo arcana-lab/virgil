@@ -135,12 +135,6 @@ namespace MARC {
       std::uint32_t getQueueIndex (Func&& func, Args&&... args); 
 
       /*
-       * Place a job in a given queue.
-       */
-      template <typename Func, typename... Args>
-      void enqueueJob (std::uint32_t queueIndex, Func&& func, Args&&... args);
-
-      /*
        * Expand the pool if possible and necessary.
        */
       void expandPool (void);
@@ -219,11 +213,6 @@ void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToE
 template <typename Func, typename... Args>
 std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
   return rand() % m_workQueues.size();
-}
-
-template <typename Func, typename... Args>
-void MARC::ThreadPool::enqueueJob (std::uint32_t queueIndex, Func&& func, Args&&... args) {
-  return;
 }
 
 
