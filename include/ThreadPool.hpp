@@ -182,11 +182,6 @@ std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
   return rand() % m_workQueues.size();
 }
 
-template <typename Func, typename... Args>
-void MARC::ThreadPool::enqueueJob (std::uint32_t queueIndex, Func&& func, Args&&... args) {
-  return;
-}
-
 
 template <typename Func, typename... Args>
 std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
