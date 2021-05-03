@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2019  Simone Campanoni
+ * Copyright 2017 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -16,8 +16,8 @@
 
 #include "ThreadSafeMutexQueue.hpp"
 #include "ThreadTask.hpp"
-#include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
+#include "ThreadPoolInterface.hpp"
 
 #include <unistd.h>
 #include <algorithm>
@@ -35,7 +35,7 @@ namespace MARC {
   /*
    * Thread pool.
    */
-  class ThreadPool {
+  class ThreadPool : public ThreadPoolInterface {
     public:
 
       /*
@@ -52,11 +52,6 @@ namespace MARC {
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
-
-      /*
-       * Add code to execute when the threadpool is destroyed.
-       */
-      void appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor);
 
       /*
        * Submit a job to be run by the thread pool.
@@ -83,22 +78,9 @@ namespace MARC {
       void submitAndDetach (Func&& func, Args&&... args) ;
 
       /*
-       * Submit a job to be run by the thread pool and detach it from the caller.
-       */
-      void submitAndDetachCFunction (
-        void (*f) (void *args),
-        void *args
-        );
-
-      /*
-       * Return the number of threads that are currently idle.
-       */
-      std::uint32_t numberOfIdleThreads (void) const ;
-
-      /*
        * Return the number of tasks that did not start executing yet.
        */
-      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const ;
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const override ;
 
       /*
        * Destructor.
@@ -152,7 +134,7 @@ namespace MARC {
       /*
        * Invalidates the queue and joins all running threads.
        */
-      void destroy (void);
+      void destroy (void) override ;
   };
 
 }
@@ -182,11 +164,6 @@ MARC::ThreadPool::ThreadPool (
   {
 
   /*
-   * Set whether or not the thread pool can dynamically change its number of threads.
-   */
-  this->extendible = extendible;
-
-  /*
    * Start threads.
    */
   try {
@@ -197,18 +174,14 @@ MARC::ThreadPool::ThreadPool (
     throw;
   }
 
-  if (codeToExecuteAtDeconstructor != nullptr){
-    this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-  }
-
   return ;
 }
 
-void MARC::ThreadPool::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
-  this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
-
-  return ;
+template <typename Func, typename... Args>
+std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
+  return rand() % m_workQueues.size();
 }
+
 
 template <typename Func, typename... Args>
 std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
@@ -405,15 +378,7 @@ void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
 }
 
 void MARC::ThreadPool::destroy (void){
-
-  /*
-   * Execute the user code.
-   */
-  while (codeToExecuteByTheDeconstructor.size() > 0){
-    std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code);
-    code();
-  }
+  MARC::ThreadPoolInterface::destroy();
 
   /*
    * Signal threads to quite.
@@ -437,19 +402,6 @@ void MARC::ThreadPool::destroy (void){
   }
 
   return ;
-}
-
-std::uint32_t MARC::ThreadPool::numberOfIdleThreads (void) const {
-  std::uint32_t n = 0;
-
-  for (auto i=0; i < this->m_threads.size(); i++){
-    auto isThreadAvailable = this->threadAvailability[i];
-    if (*isThreadAvailable){
-      n++;
-    }
-  }
-
-  return n;
 }
 
 std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {

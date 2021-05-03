@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2019  Simone Campanoni
+ * Copyright 2017 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -9,22 +9,25 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  *
- * The ThreadSafeMutexQueue class.
+ * The ThreadSafeMutexQueueSleep class.
  * Provides a wrapper around a basic queue to provide thread safety.
  */
 #pragma once
 
+#include <atomic>
 #include <condition_variable>
 #include <mutex>
 #include <queue>
 #include <utility>
+#include <thread>  
+#include <chrono>
 
 #include "ThreadSafeQueue.hpp"
 
 namespace MARC {
 
   template <typename T>
-  class ThreadSafeMutexQueue final : public ThreadSafeQueue<T> {
+  class ThreadSafeMutexQueueSleep final : public ThreadSafeQueue<T> {
     using Base = MARC::ThreadSafeQueue<T>;
 
     public:
@@ -32,7 +35,7 @@ namespace MARC {
       /*
        * Default constructor
        */
-      ThreadSafeMutexQueue ();
+      ThreadSafeMutexQueueSleep ();
 
       /*
        * Attempt to get the first value in the queue.
@@ -86,19 +89,19 @@ namespace MARC {
       /*
        * Destructor.
        */
-      ~ThreadSafeMutexQueue(void);
+      ~ThreadSafeMutexQueueSleep(void);
 
       /*
        * Not copyable.
        */
-      ThreadSafeMutexQueue (const ThreadSafeMutexQueue & other) = delete;
-      ThreadSafeMutexQueue & operator= (const ThreadSafeMutexQueue & other) = delete;
+      ThreadSafeMutexQueueSleep (const ThreadSafeMutexQueueSleep & other) = delete;
+      ThreadSafeMutexQueueSleep & operator= (const ThreadSafeMutexQueueSleep & other) = delete;
 
       /*
        * Not assignable.
        */
-      ThreadSafeMutexQueue (const ThreadSafeMutexQueue && other) = delete;
-      ThreadSafeMutexQueue & operator= (const ThreadSafeMutexQueue && other) = delete;
+      ThreadSafeMutexQueueSleep (const ThreadSafeMutexQueueSleep && other) = delete;
+      ThreadSafeMutexQueueSleep & operator= (const ThreadSafeMutexQueueSleep && other) = delete;
 
     private:
 
@@ -106,7 +109,6 @@ namespace MARC {
        * Fields
        */
       mutable std::mutex m_mutex;
-      std::condition_variable empty_condition;
       std::condition_variable full_condition;
 
       /*
@@ -120,13 +122,13 @@ namespace MARC {
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueue<T>::ThreadSafeMutexQueue(){
+MARC::ThreadSafeMutexQueueSleep<T>::ThreadSafeMutexQueueSleep(){
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
+bool MARC::ThreadSafeMutexQueueSleep<T>::tryPop (T& out){
   std::lock_guard<std::mutex> lock{m_mutex};
   if(Base::m_queue.empty() || !Base::m_valid){
     return false;
@@ -138,7 +140,7 @@ bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
+bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (T& out){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -175,7 +177,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
+bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (void){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -220,7 +222,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::push (T value){
+void MARC::ThreadSafeMutexQueueSleep<T>::push (T value){
   std::lock_guard<std::mutex> lock{m_mutex};
   internal_pushAndNotify(value);
 
@@ -228,7 +230,7 @@ void MARC::ThreadSafeMutexQueue<T>::push (T value){
 }
  
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
+bool MARC::ThreadSafeMutexQueueSleep<T>::waitPush (T value, int64_t maxSize){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   full_condition.wait(lock, 
@@ -252,21 +254,21 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::empty (void) const {
+bool MARC::ThreadSafeMutexQueueSleep<T>::empty (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.empty();
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeMutexQueue<T>::size (void) const {
+int64_t MARC::ThreadSafeMutexQueueSleep<T>::size (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.size();
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::clear (void) {
+void MARC::ThreadSafeMutexQueueSleep<T>::clear (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   while(!Base::m_queue.empty()) {
@@ -282,7 +284,7 @@ void MARC::ThreadSafeMutexQueue<T>::clear (void) {
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
+void MARC::ThreadSafeMutexQueueSleep<T>::invalidate (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   /*
@@ -300,37 +302,31 @@ void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
   /*
    * Notify
    */
-  empty_condition.notify_all();
   full_condition.notify_all();
 
   return ;
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueue<T>::~ThreadSafeMutexQueue(void){
+MARC::ThreadSafeMutexQueueSleep<T>::~ThreadSafeMutexQueueSleep(void){
   this->invalidate();
 
   return ;
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
+void MARC::ThreadSafeMutexQueueSleep<T>::internal_pushAndNotify (T& value){
 
   /*
    * Push the value to the queue.
    */
   this->internal_push(value);
 
-  /*
-   * Notify that the queue is not empty.
-   */
-  empty_condition.notify_one();
-
   return ;
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
+void MARC::ThreadSafeMutexQueueSleep<T>::internal_popAndNotify (T& out){
 
   /*
    * Pop the top element from the queue.
@@ -346,13 +342,23 @@ void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
 }
       
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
-  this->empty_condition.wait(lock, 
-    [this]()
-    {
-      return !Base::m_queue.empty() || !Base::m_valid;
+void MARC::ThreadSafeMutexQueueSleep<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
+  auto time = std::chrono::microseconds(1);
+  auto iterations = 0;
+  do {
+    lock.unlock();
+    iterations++;
+    switch (iterations){
+      case 100:
+        time = std::chrono::microseconds(100);
+        break ;
+      case 1000:
+        time = std::chrono::milliseconds(10);
+        break ;
     }
-    );
+    std::this_thread::sleep_for(time);
+    lock.lock();
+  } while (Base::m_queue.empty() && Base::m_valid);
 
   return ;
 }
