@@ -17,7 +17,7 @@
 #include <pthread.h>
 #include <iostream>
 
-#include <ThreadTask.hpp>
+#include "ThreadTask.hpp"
 
 namespace MARC {
 

@@ -2,9 +2,7 @@
  * Copyright 2017 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
  * The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
@@ -102,34 +100,14 @@ namespace MARC {
       /*
        * Object fields.
        */
-      std::atomic_bool m_done;
-      std::vector<std::thread> m_threads;
-      std::vector<std::atomic_bool *> threadAvailability;
-      ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
-      bool extendible;
-      mutable std::mutex extendingMutex;
-      std::vector<ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>>> m_workQueues; 
-
-      /*
-       * Return index of a queue to place a job in.
-       */
-      template <typename Func, typename... Args>
-      std::uint32_t getQueueIndex (Func&& func, Args&&... args); 
-
-      /*
-       * Expand the pool if possible and necessary.
-       */
-      void expandPool (void);
+      std::vector<ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>>> m_workQueues;
+      // io mutex for debug printing
+      std::mutex iomutex;
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::uint32_t threadID, std::atomic_bool *availability);
-
-      /*
-       * Start new threads.
-       */
-      void newThreads (std::uint32_t newThreadsToGenerate);
+      void worker (std::uint32_t threadID, std::atomic_bool *availability) override ;
 
       /*
        * Invalidates the queue and joins all running threads.
@@ -157,10 +135,7 @@ MARC::ThreadPool::ThreadPool (
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-  m_done{false},
-  m_workQueues{std::vector<ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>>>(numThreads)},
-  m_threads{},
-  codeToExecuteByTheDeconstructor{}
+    m_workQueues{std::vector<ThreadSafeMutexQueue<std::unique_ptr<IThreadTask>>>(numThreads)}
   {
 
   /*
@@ -176,18 +151,6 @@ MARC::ThreadPool::ThreadPool (
 
   return ;
 }
-
-template <typename Func, typename... Args>
-std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
-  return rand() % m_workQueues.size();
-}
-
-
-template <typename Func, typename... Args>
-std::uint32_t MARC::ThreadPool::getQueueIndex (Func&& func, Args&&... args) {
-  return rand() % m_workQueues.size();
-}
-
 
 template <typename Func, typename... Args>
 auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
@@ -209,7 +172,7 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
   /*
    * Submit the task.
    */
-  uint32_t queueIndex = getQueueIndex(m_workQueues, func, args...);
+  std::uint32_t queueIndex = rand() % m_workQueues.size();
   m_workQueues[queueIndex].push(std::make_unique<TaskType>(std::move(task)));
 
   /*
@@ -237,7 +200,7 @@ auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&
    */
   TaskFuture<ResultType> result{task.get_future()};
   
-  /*
+   /*
    * Choose a permissible core and submit the task.
    */
   cpu_set_t chosenCore = cores; 
@@ -315,7 +278,7 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   /*
    * Submit the task.
    */
-  uint32_t queueIndex = getQueueIndex(m_workQueues, func, args...);
+  std::uint32_t queueIndex = rand() % m_workQueues.size();
   m_workQueues[queueIndex].push(std::make_unique<TaskType>(std::move(task)));
 
   /*
@@ -326,52 +289,17 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   return ;
 }
 
-void MARC::ThreadPool::submitAndDetachCFunction (
-  void (*f) (void *args),
-  void *args
-  ){
-
-  /*
-   * Submit the task.
-   */
-  uint32_t queueIndex = getQueueIndex(m_workQueues, f, args);
-  m_workQueues[queueIndex].push(std::make_unique<ThreadCTask>(f, args));
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return ;
-}
-
-void MARC::ThreadPool::worker (std::uint32_t threadID, std::atomic_bool *availability){
-
+void MARC::ThreadPool::worker (std::uint32_t threadID, std::atomic_bool *availability) {
   while(!m_done) {
     (*availability) = true;
     std::unique_ptr<IThreadTask> pTask{nullptr};
-    if (m_workQueues[threadID].tryPop(pTask)) {
-      (*availability) = false; 
+    if(m_workQueues[threadID].waitPop(pTask)) {
+      iomutex.lock();
+      std::cout << "Thread #" << threadID << ": on CPU " << sched_getcpu() << "\n";
+      iomutex.unlock();
+      (*availability) = false;
       pTask->execute();
     }
-  }
-
-  return ;
-}
-
-void MARC::ThreadPool::newThreads (std::uint32_t newThreadsToGenerate){
-  for (auto i = 0; i < newThreadsToGenerate; i++){
-
-    /*
-     * Create the availability flag.
-     */
-    auto flag = new std::atomic_bool(true);
-    this->threadAvailability.push_back(flag);
-
-    /*
-     * Create a new thread.
-     */
-    this->m_threads.emplace_back(&ThreadPool::worker, this, i, flag);
   }
 
   return ;
@@ -384,9 +312,8 @@ void MARC::ThreadPool::destroy (void){
    * Signal threads to quite.
    */
   m_done = true;
-  for (auto &queue : m_workQueues) {
+  for (auto &queue : m_workQueues)
     queue.invalidate();
-  }
 
   /*
    * Join threads.
@@ -405,36 +332,11 @@ void MARC::ThreadPool::destroy (void){
 }
 
 std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  std::uint64_t s = 0; 
+  std::uint64_t s; 
   for (auto &queue : m_workQueues)
     s += queue.size(); 
+
   return s;
-}
-
-void MARC::ThreadPool::expandPool (void) {
-
-  /*
-   * Check whether we are allow to expand the pool or not.
-   */
-  if (!this->extendible){
-     return ;
-  }
-
-  /*
-   * We are allow to expand the pool.
-   *
-   * Check whether we should expand the pool.
-   */
-  if (this->numberOfIdleThreads() < this->numberOfTasksWaitingToBeProcessed()){
-
-    /*
-     * Spawn new threads.
-     */
-    std::lock_guard<std::mutex> lock{this->extendingMutex};
-    this->newThreads(2);
-  }
-
-  return ;
 }
 
 MARC::ThreadPool::~ThreadPool (void){
