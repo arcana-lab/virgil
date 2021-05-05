@@ -21,7 +21,7 @@
 #include <utility>
 #include <pthread.h>
 
-#include <ThreadSafeQueue.hpp>
+#include "ThreadSafeQueue.hpp"
 
 namespace MARC {
 
