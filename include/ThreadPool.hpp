@@ -204,9 +204,7 @@ auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&
    * Choose a permissible core and submit the task.
    */
   cpu_set_t chosenCore = cores; 
-  if (sched_getaffinity(0, sizeof(chosenCore), &chosenCore)){
-    std::cerr << "ThreadPool: bad affinity in call to submitToCores" << std::endl;
-  }
+
   std::uint32_t coreID;
   for (coreID = 0; coreID < CPU_SETSIZE; coreID++) {
     if (CPU_ISSET(coreID, &chosenCore)) {
@@ -294,9 +292,9 @@ void MARC::ThreadPool::worker (std::uint32_t threadID, std::atomic_bool *availab
     (*availability) = true;
     std::unique_ptr<IThreadTask> pTask{nullptr};
     if(m_workQueues[threadID].waitPop(pTask)) {
-      iomutex.lock();
-      std::cout << "Thread #" << threadID << ": on CPU " << sched_getcpu() << "\n";
-      iomutex.unlock();
+      //iomutex.lock();
+      //std::cout << "Thread #" << threadID << ": on CPU " << sched_getcpu() << "\n";
+      //iomutex.unlock();
       (*availability) = false;
       pTask->execute();
     }
