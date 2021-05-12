@@ -35,6 +35,9 @@ testHELIX: testHELIX.o
 test_extendible: test_extendible.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
+testForC1: testForC1.o
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
 baseline: baseline.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
