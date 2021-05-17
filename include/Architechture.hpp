@@ -1,18 +1,36 @@
 #pragma once
 
+
+/**
+ * ARCHITECHTURE is a collection of classes used to describe any particular machine.
+ * Relationships between object and certain properties of each object can be queried.
+ * In summary, this is a graph with types of edges for types of relationships.
+ * These classes are meant to be optmized for query efficiency, not build efficiency.
+**/
+
 #include <cstddef>
 #include <cstdint>
 #include <queue>
+#include <unordered_set>
 #include <vector>
 
-typedef std::size_t cpu_strength_t;
-typedef std::size_t cpu_id_t;
+#define MARC_DELETE_COPY(x)                 \
+  /** Delete automatic copy constructor **/ \
+  x(const x&) = delete;                     \
+  /** Delete automatic assignment op **/    \
+  x& operator=(const x&) = delete
+
+typedef std::size_t pu_strength_t;
+typedef std::size_t pu_id_t;
 typedef std::size_t core_id_t;
 typedef std::size_t numa_id_t;
 
 namespace MARC {
 class ThreadPool;
 class NumaNode;
+class PU;
+class Core;
+class Socket;
 
 class NumaNode {
 private:
@@ -20,62 +38,88 @@ private:
   numa_id_t id_;
 };
 
-/// A CPU is a logical processor. Distinct from a Core (see hyperthreading).
-/// A CPU has a notion of computational power, which may vary when other CPUs on
-/// the system are running.
-class CPU {
+class Cache {
 public:
-  /// @return Unique identifier for this CPU
-  cpu_id_t get_id() const;
+  MARC_DELETE_COPY(Cache);
 
-  /// @return Power of this CPU assuming it is running in isolation
-  cpu_strength_t get_power() const;
+  Cache();
 
-  /// @param cpus Set of unique IDs corresponding to other CPUs that are
+  /// @param pu PU to associate with this cache
+  void associate_pu(PU* pu);
+
+  /// @param other The cache to associate as this cache's lower cache. Also adds this cache to other's higher caches
+  void associate_lower_cache(Cache* other);
+
+  /// @return All PUs associated with this cache
+  const std::vector<PU*>& get_associated_pus() const;
+
+  /// @return The next-lower cache
+  const Cache* get_lower_cache() const;
+
+  /// @return The next-higher caches
+  const std::vector<Cache*> get_higher_caches() const;
+
+private:
+  /// All PUs associated with this Cache
+  std::vector<PU*> associated_pus_fast_;
+
+  /// All caches which draw from this one, e.g. for L2 this would be any
+  /// associated L1 caches.
+  std::vector<Cache*> higher_caches_;
+
+  /// The cache that this cache uses, e.g. for L1 this would be L2.
+  Cache* lower_cache_;
+};
+
+/// A PU is a logical processor. Distinct from a Core (see hyperthreading).
+/// A PU has a notion of computational power, which may vary when other PUs on
+/// the system are running.
+class PU {
+public:
+  MARC_DELETE_COPY(PU);
+
+  /// @return Unique identifier for this PU
+  pu_id_t get_id() const;
+
+  /// @return Power of this PU assuming it is running in isolation
+  pu_strength_t get_power() const;
+
+  /// @param pus Set of unique IDs corresponding to other PUs that are
   /// currently running
-  /// @return Power of this CPU given context that some other CPUs are hot
-  cpu_strength_t get_power(const std::vector<const Core*>& other_cpus) const;
+  /// @return Power of this PU given context that some other PUs are hot
+  pu_strength_t get_power(const std::vector<const PU*>& other_pus) const;
 
-  /// @return Core that this CPU is part of
+  /// @return Core that this PU is part of
   const Core* get_core() const;
 
 private:
   /// Unique identifier
-  cpu_id_t id_;
+  pu_id_t id_;
 
-  /// Core this cpu belongs to
+  /// Core this pu belongs to
   Core* core_;
 };
 
-/// A representation of a core on a processor. Distinct from a CPU (see
-/// hyperthreading). A Core has one or more CPUs, belongs to exactly one Socket,
+/// A representation of a core on a processor. Distinct from a PU (see
+/// hyperthreading). A Core has one or more PUs, belongs to exactly one Socket,
 /// and has its own cache.
 class Core {
 public:
+  MARC_DELETE_COPY(Core);
+
   /// @param socket Socket this core belongs to
   /// @param numa_node NUMA node this core belongs to
-  /// @param cpus List of CPUs on this core
-  /// @param l1i_cache_size_bytes L1i cache size in bytes
-  /// @param l1d_cache_size_bytes L1d cache size in bytes
-  /// @param l2_cache_size_bytes L2 cache size in bytes
-  Core(Socket* socket, NumaNode* numa_node, std::vector<CPU>&& cpus,
-       std::size_t l1i_cache_size_bytes, std::size_t l1d_cache_size_bytes,
-       std::size_t l2_cache_size_bytes);
+  /// @param pus List of PUs on this core
+  /// @param l1_cache L1 cache
+  /// @param l2_cache L2 cache
+  /// @param l3_cache L3 cache
+  Core(Socket* socket, NumaNode* numa_node, std::vector<PU*>&& pus,
+       Cache* l1_cache, Cache* l2_cache, Cache* l3_cache);
 
-  /// @return size of the L1i cache in bytes
-  std::size_t get_l1i_cache_size_bytes() const;
+  ~Core();
 
-  /// @return size of the L1d cache in bytes
-  std::size_t get_l1d_cache_size_bytes() const;
-
-  /// @return size of the L2 cache in bytes
-  std::size_t get_l2_cache_size_bytes() const;
-
-  /// @return size of the L3 cache in bytes
-  std::size_t get_l3_cache_size_bytes() const;
-
-  /// @return set of CPUs on this core
-  const std::vector<CPU>& get_cpus() const;
+  /// @return set of PUs on this core
+  const std::vector<PU*>& get_pus() const;
 
   /// @return this core's NUMA node
   const NumaNode* get_numa_node() const;
@@ -87,17 +131,17 @@ private:
   /// Representation of cores on this numa node.
   NumaNode* numa_node_;
 
-  /// CPUs on this core (i.e. hyperthreads)
-  std::vector<CPU> cpus_;
+  /// PUs on this core. We are responsible for freeing them.
+  std::vector<PU*> pus_;
 
-  /// L1i cache size in bytes
-  std::size_t l1i_cache_size_bytes_;
+  /// L1 cache
+  Cache* l1_cache_;
 
-  /// L1d cache size in bytes
-  std::size_t l1d_cache_size_bytes_;
+  /// L2 cache
+  Cache* l2_cache_;
 
-  /// L2 cache size in bytes
-  std::size_t l2_cache_size_bytes_;
+  /// L3 cache
+  Cache* l3_cache_;
 
   /// Socket this core belongs to
   Socket* socket_;
@@ -105,43 +149,50 @@ private:
 
 class Socket {
 public:
-  /// @return The cores on this socket
-  const std::vector<Core>& get_cores() const;
+  MARC_DELETE_COPY(Socket);
 
-  /// @return size of the L3 cache in bytes
-  std::size_t get_l3_cache_size_bytes() const;
+  /// @return The cores on this socket
+  const std::vector<Core*>& get_cores() const;
 
 private:
-  std::vector<Core> cores_;
+  /// Cores on this socket. We are responsible for freeing them.
+  std::vector<Core*> cores_;
 
-  std::size_t llc_cache_size_;
+  /// Caches on this socket. We are responsible for freeing them.
+  std::vector<Cache*> caches_;
 };
 
-/// TODO: add a way to differentiate related cores i.e. hyperthreads (hwloc?)
-/// /project/zythos/zythos.git
 class Architechture {
 public:
+  MARC_DELETE_COPY(Architechture);
+
   /// Construct a new architecture from properties
   Architechture();
 
-  /// @param cpu_id The ID of the CPU to get strength for
-  /// @return The static CPU strength
-  cpu_strength_t get_cpu_strength(std::size_t cpu_id) const;
+  /// Destructor
+  ~Architechture();
 
-  /// @return The number of CPUs
-  std::size_t num_cpus() const;
+  /// @param pu_id The ID of the PU to get strength for
+  /// @return The static PU strength
+  pu_strength_t get_pu_strength(std::size_t pu_id) const;
+
+  /// @return The number of PUs
+  std::size_t num_pus() const;
 
   /// @return The number of cores
   std::size_t num_cores() const;
 
 private:
-  void count_cores_and_cpus_();
-  std::vector<Socket> sockets_;
+  void count_cores_and_pus_();
 
-  std::vector<NumaNode> numa_nodes_;
+  /// Sockets on this system. We are responsible for freeing them.
+  std::vector<Socket*> sockets_;
 
-  /// Static number of cpus
-  std::size_t num_cpus_;
+  /// Numa nodes on this system. We are responsible for freeing them.
+  std::vector<NumaNode*> numa_nodes_;
+
+  /// Static number of pus
+  std::size_t num_pus_;
 
   /// Static number of cores
   std::size_t num_cores_;
@@ -151,44 +202,60 @@ private:
 /* Implementation below here */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-Core::Core(Socket* socket, NumaNode* numa_node, std::vector<CPU>&& cpus,
-           std::size_t l1i_cache_size_bytes, std::size_t l1d_cache_size_bytes,
-           std::size_t l2_cache_size_bytes)
-    : socket_(socket)
-    , numa_node_(numa_node)
-    , cpus_(cpus)
-    , l1i_cache_size_bytes_(l1i_cache_size_bytes)
-    , l1d_cache_size_bytes_(l1d_cache_size_bytes)
-    , l2_cache_size_bytes_(l2_cache_size_bytes)
-
-{}
-
-std::size_t Core::get_l3_cache_size_bytes() const {
-  return socket_->get_l3_cache_size_bytes();
+void Cache::associate_lower_cache(Cache* other) {
+  this->lower_cache_ = other;
+  for (auto* existing_higher_cache : other->higher_caches_) {
+    if (existing_higher_cache == this) {
+      return;
+    }
+  }
+  other->higher_caches_.push_back(this);
 }
 
-std::size_t Socket::get_l3_cache_size_bytes() const { return llc_cache_size_; }
+Core::Core(Socket* socket, NumaNode* numa_node, std::vector<PU*>&& pus,
+           Cache* l1_cache, Cache* l2_cache, Cache* l3_cache)
+    : numa_node_(numa_node)
+    , pus_(pus)
+    , l1_cache_(l1_cache)
+    , l2_cache_(l2_cache)
+    , l3_cache_(l3_cache)
+    , socket_(socket) {}
+
+Core::~Core() {
+  for (auto* pu : pus_) {
+    delete pu;
+  }
+}
 
 Architechture::Architechture() {
-  count_cores_and_cpus_(); /* Must be called after setting up the heirarchy
+  count_cores_and_pus_(); /* Must be called after setting up the heirarchy
                               above */
 }
 
-void Architechture::count_cores_and_cpus_() {
-  num_cpus_ = 0;
+Architechture::~Architechture() {
+  for (auto* socket : sockets_) {
+    delete socket;
+  }
+  for (auto* numa_node : numa_nodes_) {
+    delete numa_node;
+  }
+}
+
+void Architechture::count_cores_and_pus_() {
+  num_pus_ = 0;
   num_cores_ = 0;
   for (const auto& socket : sockets_) {
-    for (const auto& core : socket.get_cores()) {
+    for (const auto* core : socket->get_cores()) {
       num_cores_ += 1;
-      for (const auto& cpu : core.get_cpus()) {
-        num_cpus_ += 1;
-      }
+      num_pus_ += core->get_pus().size();
     }
   }
 }
 
-std::size_t Architechture::num_cpus() const { return num_cpus_; }
+std::size_t Architechture::num_pus() const { return num_pus_; }
 
 std::size_t Architechture::num_cores() const { return num_cores_; }
 
 } // namespace MARC
+
+#undef MARC_DELETE_COPY
