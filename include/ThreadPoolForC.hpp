@@ -33,6 +33,9 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <sched.h>
+
+typedef int LocalityIsland;
 
 namespace MARC {
 
@@ -62,7 +65,8 @@ namespace MARC {
        */
       void submitAndDetach (
         void (*f) (void *args),
-        void *args
+        void *args,
+        LocalityIsland = 0
         );
 
       /*
@@ -93,12 +97,13 @@ namespace MARC {
       /*
        * Object fields.
        */
-      ThreadSafeMutexQueue<ThreadCTask *> cWorkQueue;
+      //std::vector<ThreadSafeMutexQueue<ThreadCTask *>*> cWorkQueues;
+      std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability) override ;
+      void worker (std::atomic_bool *availability, std::uint32_t thread) override ;
 
       /*
        * Invalidates the queue and joins all running threads.
@@ -125,28 +130,37 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
-  :
-    cWorkQueue{}
+//  :
+    //cWorkQueue{}
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
+
+  /*
+   * Create 1 queue per thread
+   */
+  for (auto i = 0; i < 8 /*numThreads*/; i++){
+    //cWorkQueues.push_back(new ThreadSafeMutexQueue<ThreadCTask *>);
+    cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
+  }
 
   /*
    * Start threads.
    */
   try {
-    this->newThreads(numThreads);
+    this->newThreads(8 /*numThreads*/);
 
   } catch(...) {
     destroy();
     throw;
   }
-
+  
   return ;
 }
 
 void MARC::ThreadPoolForC::submitAndDetach (
   void (*f) (void *args),
-  void *args
+  void *args,
+  LocalityIsland li
   ){
 
   /*
@@ -173,7 +187,8 @@ void MARC::ThreadPoolForC::submitAndDetach (
   /*
    * Submit the task.
    */
-  this->cWorkQueue.push(cTask);
+//  std::cout << "Submitting a task to " << li << std::endl;
+  this->cWorkQueues.at(li)->push(cTask);
 
   /*
    * Expand the pool if possible and necessary.
@@ -183,12 +198,31 @@ void MARC::ThreadPoolForC::submitAndDetach (
   return ;
 }
 
-void MARC::ThreadPoolForC::worker (std::atomic_bool *availability){
+void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread){
+
+  // TODO BRIAN
+  // pin my core
+
+  auto cpu = sched_getcpu();
+  std::cout << "Worker started with cpu " << cpu << std::endl
+            << "It's thread id is " << thread << std::endl
+            << "cWorkQueues Size = " << cWorkQueues.size() << std::endl;
+/*  unsigned int *node;
+  if(!sched_getcpu(cpu, node)) {
+    std::cerr << "BRIAN TP: failed to getcpu\n";
+  }
+*/
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(cpu, &cpuset);
+
+  pthread_t current_thread = pthread_self();
+  pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
-    if(this->cWorkQueue.waitPop(pTask)) {
+    if(this->cWorkQueues.at(thread)->waitPop(pTask)) {
       (*availability) = false;
       pTask->execute();
     }
@@ -220,7 +254,9 @@ void MARC::ThreadPoolForC::destroy (void){
    * Signal threads to quite.
    */
   m_done = true;
-  this->cWorkQueue.invalidate();
+  for (auto queue : this->cWorkQueues) {
+    queue->invalidate();
+  }
 
   /*
    * Join threads.
@@ -239,7 +275,10 @@ void MARC::ThreadPoolForC::destroy (void){
 }
 
 std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
-  auto s = this->cWorkQueue.size();
+  std::uint64_t s = 0;
+  for (auto queue : this->cWorkQueues) {
+    s += queue->size();
+  }
 
   return s;
 }
