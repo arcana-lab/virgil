@@ -2,7 +2,7 @@
 
 
 /**
- * ARCHITECHTURE is a collection of classes used to describe any particular machine.
+ * ARCHITECTURE is a collection of classes used to describe any particular machine.
  * Relationships between object and certain properties of each object can be queried.
  * In summary, this is a graph with types of edges for types of relationships.
  * These classes are meant to be optmized for query efficiency, not build efficiency.
@@ -162,15 +162,15 @@ private:
   std::vector<Cache*> caches_;
 };
 
-class Architechture {
+class Architecture {
 public:
-  MARC_DELETE_COPY(Architechture);
+  MARC_DELETE_COPY(Architecture);
 
   /// Construct a new architecture from properties
-  Architechture();
+  Architecture();
 
   /// Destructor
-  ~Architechture();
+  ~Architecture();
 
   /// @param pu_id The ID of the PU to get strength for
   /// @return The static PU strength
@@ -227,12 +227,12 @@ Core::~Core() {
   }
 }
 
-Architechture::Architechture() {
+Architecture::Architecture() {
   count_cores_and_pus_(); /* Must be called after setting up the heirarchy
                               above */
 }
 
-Architechture::~Architechture() {
+Architecture::~Architecture() {
   for (auto* socket : sockets_) {
     delete socket;
   }
@@ -241,7 +241,7 @@ Architechture::~Architechture() {
   }
 }
 
-void Architechture::count_cores_and_pus_() {
+void Architecture::count_cores_and_pus_() {
   num_pus_ = 0;
   num_cores_ = 0;
   for (const auto& socket : sockets_) {
@@ -252,9 +252,9 @@ void Architechture::count_cores_and_pus_() {
   }
 }
 
-std::size_t Architechture::num_pus() const { return num_pus_; }
+std::size_t Architecture::num_pus() const { return num_pus_; }
 
-std::size_t Architechture::num_cores() const { return num_cores_; }
+std::size_t Architecture::num_cores() const { return num_cores_; }
 
 } // namespace MARC
 
