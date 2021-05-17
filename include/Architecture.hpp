@@ -1,12 +1,12 @@
 #pragma once
 
-
 /**
- * ARCHITECTURE is a collection of classes used to describe any particular machine.
- * Relationships between object and certain properties of each object can be queried.
- * In summary, this is a graph with types of edges for types of relationships.
- * These classes are meant to be optmized for query efficiency, not build efficiency.
-**/
+ * ARCHITECTURE is a collection of classes used to describe any particular
+ *machine. Relationships between object and certain properties of each object
+ *can be queried. In summary, this is a graph with types of edges for types of
+ *relationships. These classes are meant to be optmized for query efficiency,
+ *not build efficiency.
+ **/
 
 #include <cstddef>
 #include <cstdint>
@@ -33,6 +33,9 @@ class Core;
 class Socket;
 
 class NumaNode {
+public:
+  NumaNode();
+
 private:
   /// Unique identifier
   numa_id_t id_;
@@ -47,7 +50,8 @@ public:
   /// @param pu PU to associate with this cache
   void associate_pu(PU* pu);
 
-  /// @param other The cache to associate as this cache's lower cache. Also adds this cache to other's higher caches
+  /// @param other The cache to associate as this cache's lower cache. Also adds
+  /// this cache to other's higher caches
   void associate_lower_cache(Cache* other);
 
   /// @return All PUs associated with this cache
@@ -78,6 +82,8 @@ class PU {
 public:
   MARC_DELETE_COPY(PU);
 
+  PU();
+
   /// @return Unique identifier for this PU
   pu_id_t get_id() const;
 
@@ -107,14 +113,13 @@ class Core {
 public:
   MARC_DELETE_COPY(Core);
 
-  /// @param socket Socket this core belongs to
   /// @param numa_node NUMA node this core belongs to
   /// @param pus List of PUs on this core
   /// @param l1_cache L1 cache
   /// @param l2_cache L2 cache
   /// @param l3_cache L3 cache
-  Core(Socket* socket, NumaNode* numa_node, std::vector<PU*>&& pus,
-       Cache* l1_cache, Cache* l2_cache, Cache* l3_cache);
+  Core(NumaNode* numa_node, std::vector<PU*>& pus, Cache* l1_cache,
+       Cache* l2_cache, Cache* l3_cache);
 
   ~Core();
 
@@ -150,6 +155,8 @@ private:
 class Socket {
 public:
   MARC_DELETE_COPY(Socket);
+
+  Socket(const std::vector<Core*>& cores);
 
   /// @return The cores on this socket
   const std::vector<Core*>& get_cores() const;
@@ -202,6 +209,8 @@ private:
 /* Implementation below here */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+NumaNode::NumaNode() {}
+
 void Cache::associate_lower_cache(Cache* other) {
   this->lower_cache_ = other;
   for (auto* existing_higher_cache : other->higher_caches_) {
@@ -212,14 +221,15 @@ void Cache::associate_lower_cache(Cache* other) {
   other->higher_caches_.push_back(this);
 }
 
-Core::Core(Socket* socket, NumaNode* numa_node, std::vector<PU*>&& pus,
-           Cache* l1_cache, Cache* l2_cache, Cache* l3_cache)
+PU::PU() {}
+
+Core::Core(NumaNode* numa_node, std::vector<PU*>& pus, Cache* l1_cache,
+           Cache* l2_cache, Cache* l3_cache)
     : numa_node_(numa_node)
     , pus_(pus)
     , l1_cache_(l1_cache)
     , l2_cache_(l2_cache)
-    , l3_cache_(l3_cache)
-    , socket_(socket) {}
+    , l3_cache_(l3_cache) {}
 
 Core::~Core() {
   for (auto* pu : pus_) {
@@ -227,7 +237,26 @@ Core::~Core() {
   }
 }
 
+const std::vector<PU*>& Core::get_pus() const { return this->pus_; }
+
+Socket::Socket(const std::vector<Core*>& cores)
+    : cores_(cores) {}
+
+const std::vector<Core*>& Socket::get_cores() const { return this->cores_; }
+
 Architecture::Architecture() {
+
+  PU* pu_a0 = new PU();
+  PU* pu_a1 = new PU();
+  NumaNode* numa_node = new NumaNode();
+  std::vector<PU*> pus = {pu_a0, pu_a1};
+  Core* core = new Core(numa_node, pus, nullptr,
+                        nullptr, nullptr);
+  Socket* socket = new Socket({core});
+
+  sockets_ = {socket};
+  numa_nodes_ = {numa_node};
+
   count_cores_and_pus_(); /* Must be called after setting up the heirarchy
                               above */
 }
