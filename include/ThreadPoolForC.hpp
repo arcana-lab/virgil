@@ -159,6 +159,7 @@ void MARC::ThreadPoolForC::submitAndDetach (
     if (this->memoryPoolAvailability[i]){
       cTask = this->memoryPool[i];
       this->memoryPoolAvailability[i] = false;
+      break ;
     }
   }
   if (cTask == nullptr){
