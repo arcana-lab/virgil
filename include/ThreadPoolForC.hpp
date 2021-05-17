@@ -190,7 +190,13 @@ void MARC::ThreadPoolForC::submitAndDetach (
    * Submit the task.
    */
 //  std::cout << "Submitting a task to " << li << std::endl;
+  if (this->extendible){
+    pthread_spin_lock(&this->cWorkQueuesLock);
+  }
   this->cWorkQueues.at(li)->push(cTask);
+  if (this->extendible){
+    pthread_spin_unlock(&this->cWorkQueuesLock);
+  }
 
   /*
    * Expand the pool if possible and necessary.
@@ -263,9 +269,11 @@ void MARC::ThreadPoolForC::destroy (void){
    * Signal threads to quite.
    */
   m_done = true;
+  pthread_spin_lock(&this->cWorkQueuesLock);
   for (auto queue : this->cWorkQueues) {
     queue->invalidate();
   }
+  pthread_spin_unlock(&this->cWorkQueuesLock);
 
   /*
    * Join threads.
@@ -285,9 +293,11 @@ void MARC::ThreadPoolForC::destroy (void){
 
 std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
   std::uint64_t s = 0;
+  pthread_spin_lock(&this->cWorkQueuesLock);
   for (auto queue : this->cWorkQueues) {
     s += queue->size();
   }
+  pthread_spin_unlock(&this->cWorkQueuesLock);
 
   return s;
 }
