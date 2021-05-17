@@ -99,6 +99,7 @@ namespace MARC {
        */
       //std::vector<ThreadSafeMutexQueue<ThreadCTask *>*> cWorkQueues;
       std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
+      mutable pthread_spinlock_t cWorkQueuesLock;
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
@@ -134,6 +135,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
     //cWorkQueue{}
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
+  pthread_spin_init(&this->cWorkQueuesLock, 0);
 
   /*
    * Create 1 queue per thread
@@ -153,7 +155,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
     destroy();
     throw;
   }
-  
+
   return ;
 }
 
@@ -219,10 +221,17 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
   pthread_t current_thread = pthread_self();
   pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 
+  /*
+   * Fetch the queue of the thread
+   */
+  pthread_spin_lock(&this->cWorkQueuesLock);
+  auto threadQueue = this->cWorkQueues.at(thread);
+  pthread_spin_unlock(&this->cWorkQueuesLock);
+
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
-    if(this->cWorkQueues.at(thread)->waitPop(pTask)) {
+    if(threadQueue->waitPop(pTask)) {
       (*availability) = false;
       pTask->execute();
     }
