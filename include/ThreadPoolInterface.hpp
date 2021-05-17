@@ -108,7 +108,7 @@ namespace MARC {
       /*
        * Start new threads.
        */
-      void newThreads (std::uint32_t newThreadsToGenerate);
+      virtual void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
        * Invalidates the queue and joins all running threads.

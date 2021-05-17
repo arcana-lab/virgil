@@ -94,6 +94,10 @@ namespace MARC {
        */
       ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
 
+    protected:
+
+      void newThreads (std::uint32_t newThreadsToGenerate) override;
+
     private:
       std::vector<ThreadCTask *> memoryPool;
       std::vector<bool> memoryPoolAvailability;
@@ -102,7 +106,7 @@ namespace MARC {
       /*
        * Object fields.
        */
-      std::vector<ThreadSafeMutexQueue<ThreadCTask*>> cWorkQueues; 
+      std::vector<ThreadSafeMutexQueue<ThreadCTask*>*> cWorkQueues; 
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
@@ -135,7 +139,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-    cWorkQueues{std::vector<ThreadSafeMutexQueue<ThreadCTask*>>(numThreads)}
+    cWorkQueues{}
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
 
@@ -153,42 +157,39 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   return ;
 }
 
+void MARC::ThreadPoolForC::newThreads (std::uint32_t newThreadsToGenerate) {
+  static std::mutex hack_mutex;
+  static int i = 0;
+  std::lock_guard<std::mutex> lock(hack_mutex);
+  for (int start_i = i; i < start_i + newThreadsToGenerate; i++){
+
+    cWorkQueues.push_back(new ThreadSafeMutexQueue<ThreadCTask*>());
+
+    /*
+     * Create the availability flag.
+     */
+    auto flag = new std::atomic_bool(true);
+    this->threadAvailability.push_back(flag);
+
+    /*
+     * Create a new thread.
+     */
+    this->m_threads.emplace_back(&ThreadPoolForC::worker, this, i, flag);
+  }
+
+  return ;
+}
+
 void MARC::ThreadPoolForC::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
+  /// TODO: this is a hack.
+  static size_t last_core = 0;
+  submitToCore(last_core++ % this->cWorkQueues.size(), f, args);
+  // submitToCore(0, f, args);
 
-  /*
-   * Fetch the memory.
-   */
-  ThreadCTask *cTask = nullptr;
-  pthread_spin_lock(&this->memoryPoolLock);
-  auto poolSize = this->memoryPoolAvailability.size();
-  for (auto i = 0; i < poolSize; i++){
-    if (this->memoryPoolAvailability[i]){
-      cTask = this->memoryPool[i];
-      this->memoryPoolAvailability[i] = false;
-    }
-  }
-  if (cTask == nullptr){
-    cTask = new ThreadCTask(poolSize);
-    this->memoryPool.push_back(cTask);
-    this->memoryPoolAvailability.push_back(false);
-  }
-  pthread_spin_unlock(&this->memoryPoolLock);
-  cTask->setFunction(f, args);
-
-  /*
-   * Submit the task (to a random queue).
-   */
-  this->cWorkQueues[0].push(cTask);
-
-  /*
-   * Expand the pool if possible and necessary.
-   */
-  this->expandPool();
-
-  return ;
+  return;
 }
 
 void MARC::ThreadPoolForC::submitToCore (
@@ -220,7 +221,7 @@ void MARC::ThreadPoolForC::submitToCore (
   /*
    * Submit the task.
    */
-  this->cWorkQueues[core].push(cTask);
+  this->cWorkQueues[core]->push(cTask);
 
   /*
    * Expand the pool if possible and necessary.
@@ -235,7 +236,7 @@ void MARC::ThreadPoolForC::worker (std::uint32_t threadID, std::atomic_bool *ava
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
-    if(this->cWorkQueues[threadID].waitPop(pTask)) {
+    if(this->cWorkQueues[threadID]->waitPop(pTask)) {
       (*availability) = false;
       pTask->execute();
     }
@@ -268,7 +269,7 @@ void MARC::ThreadPoolForC::destroy (void){
    */
   m_done = true;
   for (auto &queue : this->cWorkQueues)
-    queue.invalidate();
+    queue->invalidate();
 
   /*
    * Join threads.
@@ -288,8 +289,8 @@ void MARC::ThreadPoolForC::destroy (void){
 
 std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
   std::uint64_t s = 0;
-  for (auto &queue : this->cWorkQueues)
-    s += queue.size();
+  for (auto queue : this->cWorkQueues)
+    s += queue->size();
   return s;
 }
 
