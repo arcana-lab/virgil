@@ -82,7 +82,10 @@ class PU {
 public:
   MARC_DELETE_COPY(PU);
 
-  PU();
+  /// @param id ID coresponding to the physical core as in cpuset
+  /// @param isolated_strength Relative power of this PU when nothing else is
+  /// running
+  PU(pu_id_t id, pu_strength_t isolated_strength);
 
   /// @return Unique identifier for this PU
   pu_id_t get_id() const;
@@ -101,6 +104,9 @@ public:
 private:
   /// Unique identifier
   pu_id_t id_;
+
+  /// Raw, relative power of the PU when nothing else is running
+  pu_strength_t isolated_strength_;
 
   /// Core this pu belongs to
   Core* core_;
@@ -183,11 +189,20 @@ public:
   /// @return The static PU strength
   pu_strength_t get_pu_strength(std::size_t pu_id) const;
 
+  /// @return Sockets on this system
+  const std::vector<Socket*>& get_sockets() const;
+
+  /// @return Cores on this system
+  const std::vector<PU*>& get_pus() const;
+
   /// @return The number of PUs
   std::size_t num_pus() const;
 
   /// @return The number of cores
   std::size_t num_cores() const;
+
+  /// TODO: remove!!! for testing only
+  pu_strength_t max_pu_strength;
 
 private:
   void count_cores_and_pus_();
@@ -221,7 +236,13 @@ void Cache::associate_lower_cache(Cache* other) {
   other->higher_caches_.push_back(this);
 }
 
-PU::PU() {}
+PU::PU(pu_id_t id, pu_strength_t isolated_strength)
+    : id_(id)
+    , isolated_strength_(isolated_strength) {}
+
+pu_id_t PU::get_id() const { return id_; }
+
+pu_strength_t PU::get_power() const { return isolated_strength_; }
 
 Core::Core(NumaNode* numa_node, std::vector<PU*>& pus, Cache* l1_cache,
            Cache* l2_cache, Cache* l3_cache)
@@ -246,12 +267,13 @@ const std::vector<Core*>& Socket::get_cores() const { return this->cores_; }
 
 Architecture::Architecture() {
 
-  PU* pu_a0 = new PU();
-  PU* pu_a1 = new PU();
+  max_pu_strength = 100000;
+  PU* pu_a0 = new PU(0, 100000);
+  PU* pu_a1 = new PU(1, 70000);
+
   NumaNode* numa_node = new NumaNode();
   std::vector<PU*> pus = {pu_a0, pu_a1};
-  Core* core = new Core(numa_node, pus, nullptr,
-                        nullptr, nullptr);
+  Core* core = new Core(numa_node, pus, nullptr, nullptr, nullptr);
   Socket* socket = new Socket({core});
 
   sockets_ = {socket};
@@ -279,6 +301,22 @@ void Architecture::count_cores_and_pus_() {
       num_pus_ += core->get_pus().size();
     }
   }
+}
+
+const std::vector<PU*>& Architecture::get_pus() const {
+  /// TODO: refactor caching to class level, possibly at construction
+  static std::vector<PU*> all_pus = {};
+  if (all_pus.empty()) {
+    // Assuming that Socket -> Core -> PU is a tree relationship
+    for (auto* socket : sockets_) {
+      for (auto* core : socket->get_cores()) {
+        for (auto* pu : core->get_pus()) {
+          all_pus.push_back(pu);
+        }
+      }
+    }
+  }
+  return all_pus;
 }
 
 std::size_t Architecture::num_pus() const { return num_pus_; }
