@@ -38,8 +38,14 @@ test_extendible: test_extendible.o
 baseline: baseline.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
+stresstest1: stresstest1.o 
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
 %.o: %.cpp
 	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
+
+performance: stresstest1
+	perf stat ./$< 8 300000 8
 
 run: $(PROGRAM)
 	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
@@ -47,4 +53,4 @@ run: $(PROGRAM)
 clean:
 	rm -f *.o $(PROGRAMS) perf.* *.txt
 
-.PHONY: clean run
+.PHONY: clean run performance
