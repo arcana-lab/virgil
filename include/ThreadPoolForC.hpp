@@ -97,8 +97,8 @@ namespace MARC {
       /*
        * Object fields.
        */
-      std::vector<ThreadSafeMutexQueueSleep<ThreadCTask *>*> cWorkQueues;
-      //std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
+      //std::vector<ThreadSafeMutexQueueSleep<ThreadCTask *>*> cWorkQueues;
+      std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
       mutable pthread_spinlock_t cWorkQueuesLock;
 
       /*
@@ -141,8 +141,8 @@ MARC::ThreadPoolForC::ThreadPoolForC (
    * Create 1 queue per thread
    */
   for (auto i = 0; i < 8 /*numThreads*/; i++){
-    cWorkQueues.push_back(new ThreadSafeMutexQueueSleep<ThreadCTask *>);
-    //cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
+    //cWorkQueues.push_back(new ThreadSafeMutexQueueSleep<ThreadCTask *>);
+    cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
   }
 
   /*
@@ -188,11 +188,14 @@ void MARC::ThreadPoolForC::submitAndDetach (
    * Submit the task.
    */
 //  std::cout << "Submitting a task to " << li << std::endl;
-  if (this->extendible){
+  if (true || this->extendible){
     pthread_spin_lock(&this->cWorkQueuesLock);
   }
+//  pthread_spin_lock(&this->cWorkQueues.at(li)->spinLock);
+//  std::cout << "Submitting task " << cTask << " to queue at " << this->cWorkQueues.at(li) << std::endl;
   this->cWorkQueues.at(li)->push(cTask);
-  if (this->extendible){
+//  pthread_spin_unlock(&this->cWorkQueues.at(li)->spinLock);
+  if (true || this->extendible){
     pthread_spin_unlock(&this->cWorkQueuesLock);
   }
 
@@ -210,9 +213,6 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
   // pin my core
 
   auto cpu = sched_getcpu();
-  std::cout << "Worker started with cpu " << cpu << std::endl
-            << "It's thread id is " << thread << std::endl
-            << "cWorkQueues Size = " << cWorkQueues.size() << std::endl;
 /*  unsigned int *node;
   if(!sched_getcpu(cpu, node)) {
     std::cerr << "BRIAN TP: failed to getcpu\n";
@@ -230,13 +230,19 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
    */
   pthread_spin_lock(&this->cWorkQueuesLock);
   auto threadQueue = this->cWorkQueues.at(thread);
+  std::cout << "Worker started with cpu " << cpu << std::endl
+            << "It's thread id is " << thread << std::endl
+            << "cWorkQueues Size = " << cWorkQueues.size() << std::endl
+            << "threadQ = " << threadQueue << std::endl;
+
   pthread_spin_unlock(&this->cWorkQueuesLock);
 
   while(!m_done) {
-    (*availability) = true;
+//    (*availability) = true;
     ThreadCTask *pTask = nullptr;
     if(threadQueue->waitPop(pTask)) {
-      (*availability) = false;
+  //    (*availability) = false;
+//      std::cout << "Thread " << thread << " about to execute task " << pTask << " from queue " << threadQueue << std::endl;
       pTask->execute();
     }
     if (pTask){
