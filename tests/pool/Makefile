@@ -6,7 +6,7 @@ PROGRAM=baseline
 PROFILER=/usr/bin/time taskset -c 1
 PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
 PROFILER_SHOW=perf report --stdio
-OPT=-O3 -fno-inline -fno-omit-frame-pointer
+OPT=-O3 -fno-inline -fno-omit-frame-pointer -march=native
 INPUTS=100000000 0 14
 
 all: $(PROGRAMS)
