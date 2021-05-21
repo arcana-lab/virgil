@@ -98,7 +98,7 @@ namespace MARC {
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability) override ;
+      void worker (std::atomic_bool *availability, std::uint32_t thread) override ;
 
       /*
        * Invalidates the queue and joins all running threads.
@@ -181,7 +181,7 @@ void MARC::ThreadPoolForC::submitAndDetach (
   return ;
 }
 
-void MARC::ThreadPoolForC::worker (std::atomic_bool *availability){
+void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread) {
 
   while(!m_done) {
     (*availability) = true;
