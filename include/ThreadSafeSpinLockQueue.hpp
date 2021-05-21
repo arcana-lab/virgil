@@ -20,6 +20,9 @@
 #include <queue>
 #include <utility>
 #include <pthread.h>
+#include <thread>
+#include <chrono>
+
 
 #include <ThreadSafeQueue.hpp>
 
@@ -121,13 +124,11 @@ bool MARC::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
 
 template <typename T>
 bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
-  pthread_spin_lock(&this->spinLock);
 
   /*
    * Check if the queue is not valid anymore.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
@@ -135,10 +136,9 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
    * Wait until the queue will be in a valid state and it will be not empty.
    */
   while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
   }
 
+  pthread_spin_lock(&this->spinLock);
   /*
    * Using the condition in the predicate ensures that spurious wakeups with a valid
    * but empty queue will not proceed, so only need to check for validity before proceeding.
@@ -156,13 +156,11 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
 
 template <typename T>
 bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
-  pthread_spin_lock(&this->spinLock);
 
   /*
    * Check if the queue is not valid anymore.
    */
   if(!Base::m_valid) {
-    pthread_spin_unlock(&this->spinLock);
     return false;
   }
 
@@ -170,10 +168,9 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
    * Wait until the queue will be in a valid state and it will be not empty.
    */
   while (Base::m_valid && Base::m_queue.empty()){
-    pthread_spin_unlock(&this->spinLock);
-    pthread_spin_lock(&this->spinLock);
   }
 
+  pthread_spin_lock(&this->spinLock);
   /*
    * Using the condition in the predicate ensures that spurious wakeups with a valid
    * but empty queue will not proceed, so only need to check for validity before proceeding.
