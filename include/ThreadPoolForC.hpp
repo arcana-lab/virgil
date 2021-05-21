@@ -97,7 +97,6 @@ namespace MARC {
       /*
        * Object fields.
        */
-      //std::vector<ThreadSafeMutexQueueSleep<ThreadCTask *>*> cWorkQueues;
       std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
       mutable pthread_spinlock_t cWorkQueuesLock;
 
@@ -131,8 +130,6 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
-//  :
-    //cWorkQueue{}
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
   pthread_spin_init(&this->cWorkQueuesLock, 0);
@@ -140,8 +137,8 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   /*
    * Create 1 queue per thread
    */
-  for (auto i = 0; i < 8 /*numThreads*/; i++){
-    //cWorkQueues.push_back(new ThreadSafeMutexQueueSleep<ThreadCTask *>);
+  std::cout << "Starting " << numThreads << " Threads\n";
+  for (auto i = 0; i < numThreads; i++){
     cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
   }
 
@@ -149,7 +146,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
    * Start threads.
    */
   try {
-    this->newThreads(8 /*numThreads*/);
+    this->newThreads(numThreads);
 
   } catch(...) {
     destroy();
@@ -187,15 +184,13 @@ void MARC::ThreadPoolForC::submitAndDetach (
   /*
    * Submit the task.
    */
-//  std::cout << "Submitting a task to " << li << std::endl;
-  if (true || this->extendible){
+  if (this->extendible){
     pthread_spin_lock(&this->cWorkQueuesLock);
   }
-//  pthread_spin_lock(&this->cWorkQueues.at(li)->spinLock);
-//  std::cout << "Submitting task " << cTask << " to queue at " << this->cWorkQueues.at(li) << std::endl;
+
   this->cWorkQueues.at(li)->push(cTask);
-//  pthread_spin_unlock(&this->cWorkQueues.at(li)->spinLock);
-  if (true || this->extendible){
+
+  if (this->extendible){
     pthread_spin_unlock(&this->cWorkQueuesLock);
   }
 
@@ -209,15 +204,8 @@ void MARC::ThreadPoolForC::submitAndDetach (
 
 void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread){
 
-  // TODO BRIAN
-  // pin my core
 
   auto cpu = sched_getcpu();
-/*  unsigned int *node;
-  if(!sched_getcpu(cpu, node)) {
-    std::cerr << "BRIAN TP: failed to getcpu\n";
-  }
-*/
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu, &cpuset);
@@ -230,19 +218,16 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
    */
   pthread_spin_lock(&this->cWorkQueuesLock);
   auto threadQueue = this->cWorkQueues.at(thread);
-  std::cout << "Worker started with cpu " << cpu << std::endl
+/*  std::cout << "Worker started with cpu " << cpu << std::endl
             << "It's thread id is " << thread << std::endl
             << "cWorkQueues Size = " << cWorkQueues.size() << std::endl
-            << "threadQ = " << threadQueue << std::endl;
+            << "threadQ = " << threadQueue << std::endl;*/
 
   pthread_spin_unlock(&this->cWorkQueuesLock);
 
   while(!m_done) {
-//    (*availability) = true;
     ThreadCTask *pTask = nullptr;
     if(threadQueue->waitPop(pTask)) {
-  //    (*availability) = false;
-//      std::cout << "Thread " << thread << " about to execute task " << pTask << " from queue " << threadQueue << std::endl;
       pTask->execute();
     }
     if (pTask){
