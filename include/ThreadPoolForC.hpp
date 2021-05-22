@@ -137,7 +137,6 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   /*
    * Create 1 queue per thread
    */
-  std::cout << "Starting " << numThreads << " Threads\n";
   for (auto i = 0; i < numThreads; i++){
     cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
   }
