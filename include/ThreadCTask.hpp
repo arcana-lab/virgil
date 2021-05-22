@@ -159,7 +159,7 @@ void MARC::ThreadCTask::execute (void){
 }
 
 bool MARC::ThreadCTask::getAvailability() {
-  bool ret = false;
+  auto ret = false;
 
   if(available) {
     pthread_spin_lock(&this->availabilityLock);
@@ -171,11 +171,9 @@ bool MARC::ThreadCTask::getAvailability() {
   }
 
   return ret;
-
 }
 
 void MARC::ThreadCTask::setAvailable() {
-
   pthread_spin_lock(&this->availabilityLock);
   available = true;
   pthread_spin_unlock(&this->availabilityLock);
