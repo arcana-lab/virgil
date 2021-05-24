@@ -82,13 +82,15 @@ namespace MARC {
       ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
 
     protected:
-      std::vector<ThreadCTask *> memoryPool;
-      mutable pthread_spinlock_t memoryPoolLock;
 
       /*
        * Return a free task
        */
       ThreadCTask * getTask (void);
+
+    private:
+      std::vector<ThreadCTask *> memoryPool;
+      mutable pthread_spinlock_t memoryPoolLock;
   };
 
 }
