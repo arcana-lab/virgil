@@ -112,6 +112,11 @@ namespace MARC {
       virtual void workerFunction (std::atomic_bool *availability, std::uint32_t thread) = 0;
 
     private:
+
+      /*
+       * Object fields
+       */
+      std::vector<std::atomic_bool *> threadStarted;
       static void workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) ;
   };
 
@@ -168,6 +173,12 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
     this->threadAvailability.push_back(flag);
 
     /*
+     * Create the start flag.
+     */
+    auto threadStartFlag = new std::atomic_bool(false);
+    this->threadStarted.push_back(threadStartFlag);
+
+    /*
      * Create a new thread.
      */
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
@@ -177,6 +188,7 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
 }
 
 void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
+  (*p->threadStarted[thread]) = true;
   p->workerFunction(availability, thread);
 }
 
@@ -229,6 +241,13 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
     std::function<void ()> code;
     codeToExecuteByTheDeconstructor.waitPop(code);
     code();
+  }
+
+  /*
+   * Wait until all threads have started
+   */
+  for (auto i=0; i < this->threadStarted.size(); i++){
+    while (!*(this->threadStarted[i]));
   }
 
   /*
