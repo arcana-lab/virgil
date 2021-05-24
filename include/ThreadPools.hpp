@@ -15,3 +15,4 @@
 
 #include "ThreadPool.hpp"
 #include "ThreadPoolForCSingleQueue.hpp"
+#include "ThreadPoolForCMultiQueues.hpp"

@@ -18,9 +18,8 @@
 #include "ThreadSafeSpinLockQueue.hpp"
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
-#include "ThreadPoolInterface.hpp"
+#include "ThreadPoolForC.hpp"
 #include "ThreadSafeMutexQueueSleep.hpp"
-
 
 #include <assert.h>
 #include <unistd.h>
@@ -42,7 +41,7 @@ namespace MARC {
   /*
    * Thread pool.
    */
-  class ThreadPoolForC : public ThreadPoolInterface {
+  class ThreadPoolForCMultiQueues : public ThreadPoolForC {
     public:
 
       /*
@@ -50,12 +49,12 @@ namespace MARC {
        *
        * By default, the thread pool is not extendible and it creates at least one thread.
        */
-      ThreadPoolForC(void);
+      ThreadPoolForCMultiQueues(void);
 
       /*
        * Constructor.
        */
-      explicit ThreadPoolForC (
+      explicit ThreadPoolForCMultiQueues (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
@@ -65,8 +64,16 @@ namespace MARC {
        */
       void submitAndDetach (
         void (*f) (void *args),
+        void *args
+        ) override;
+
+      /*
+       * Submit a job to be run by the thread pool and detach it from the caller.
+       */
+      void submitAndDetach (
+        void (*f) (void *args),
         void *args,
-        LocalityIsland = 0
+        LocalityIsland li
         );
 
       /*
@@ -77,22 +84,19 @@ namespace MARC {
       /*
        * Destructor.
        */
-      ~ThreadPoolForC(void);
+      ~ThreadPoolForCMultiQueues(void);
 
       /*
        * Non-copyable.
        */
-      ThreadPoolForC(const ThreadPoolForC& rhs) = delete;
+      ThreadPoolForCMultiQueues(const ThreadPoolForCMultiQueues& rhs) = delete;
 
       /*
        * Non-assignable.
        */
-      ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
+      ThreadPoolForCMultiQueues& operator=(const ThreadPoolForCMultiQueues& rhs) = delete;
 
     private:
-      std::vector<ThreadCTask *> memoryPool;
-      std::vector<bool> memoryPoolAvailability;
-      mutable pthread_spinlock_t memoryPoolLock;
 
       /*
        * Object fields.
@@ -103,18 +107,13 @@ namespace MARC {
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::atomic_bool *availability, std::uint32_t thread) override ;
-
-      /*
-       * Invalidates the queue and joins all running threads.
-       */
-      void destroy (void) override ;
+      void workerFunction (std::atomic_bool *availability, std::uint32_t thread) override ;
   };
 
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC(void) 
-  : ThreadPoolForC{false} 
+MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues(void) 
+  : ThreadPoolForCMultiQueues{false} 
   {
 
   /*
@@ -126,12 +125,13 @@ MARC::ThreadPoolForC::ThreadPoolForC(void)
   return ;
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC (
+MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
+  :   
+      ThreadPoolForC{extendible, numThreads, codeToExecuteAtDeconstructor}
   {
-  pthread_spin_init(&this->memoryPoolLock, 0);
   pthread_spin_init(&this->cWorkQueuesLock, 0);
 
   /*
@@ -155,7 +155,16 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   return ;
 }
 
-void MARC::ThreadPoolForC::submitAndDetach (
+void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
+  void (*f) (void *args),
+  void *args
+  ){
+  static std::uint32_t nextLocality = 0;
+  this->submitAndDetach(f, args, nextLocality);
+  nextLocality++;
+}
+
+void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
   void (*f) (void *args),
   void *args,
   LocalityIsland li
@@ -164,20 +173,7 @@ void MARC::ThreadPoolForC::submitAndDetach (
   /*
    * Fetch the memory.
    */
-  ThreadCTask *cTask = nullptr;
-  pthread_spin_lock(&this->memoryPoolLock);
-  auto poolSize = this->memoryPool.size();
-  for (auto i = 0; i < poolSize; i++){
-    if (this->memoryPool[i]->getAvailability()){
-      cTask = this->memoryPool[i];
-      break ;
-    }
-  }
-  if (cTask == nullptr){
-    cTask = new ThreadCTask(poolSize);
-    this->memoryPool.push_back(cTask);
-  }
-  pthread_spin_unlock(&this->memoryPoolLock);
+  auto cTask = this->getTask();
   cTask->setFunction(f, args);
 
   /*
@@ -187,7 +183,8 @@ void MARC::ThreadPoolForC::submitAndDetach (
     pthread_spin_lock(&this->cWorkQueuesLock);
   }
 
-  this->cWorkQueues.at(li)->push(cTask);
+  auto queueID = li % this->cWorkQueues.size();
+  this->cWorkQueues.at(queueID)->push(cTask);
 
   if (this->extendible){
     pthread_spin_unlock(&this->cWorkQueuesLock);
@@ -201,14 +198,19 @@ void MARC::ThreadPoolForC::submitAndDetach (
   return ;
 }
 
-void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread){
+void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availability, std::uint32_t thread){
 
-
+  /*
+   * Fetch the current core the thread is running on
+   */
   auto cpu = sched_getcpu();
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu, &cpuset);
 
+  /*
+   * Pin the thread to the current core is running on
+   */
   pthread_t current_thread = pthread_self();
   pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 
@@ -217,11 +219,17 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
    */
   pthread_spin_lock(&this->cWorkQueuesLock);
   auto threadQueue = this->cWorkQueues.at(thread);
+/*  std::cout << "Worker started with cpu " << cpu << std::endl
+            << "It's thread id is " << thread << std::endl
+            << "cWorkQueues Size = " << cWorkQueues.size() << std::endl
+            << "threadQ = " << threadQueue << std::endl;*/
   pthread_spin_unlock(&this->cWorkQueuesLock);
 
   while(!m_done) {
+    (*availability) = true;
     ThreadCTask *pTask = nullptr;
     if(threadQueue->waitPop(pTask)) {
+      (*availability) = false;
       pTask->execute();
     }
     if (pTask){
@@ -232,8 +240,18 @@ void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t
   return ;
 }
 
-void MARC::ThreadPoolForC::destroy (void){
-  MARC::ThreadPoolInterface::destroy();
+std::uint64_t MARC::ThreadPoolForCMultiQueues::numberOfTasksWaitingToBeProcessed (void) const {
+  std::uint64_t s = 0;
+  pthread_spin_lock(&this->cWorkQueuesLock);
+  for (auto queue : this->cWorkQueues) {
+    s += queue->size();
+  }
+  pthread_spin_unlock(&this->cWorkQueuesLock);
+
+  return s;
+}
+
+MARC::ThreadPoolForCMultiQueues::~ThreadPoolForCMultiQueues (void){
 
   /*
    * Signal threads to quite.
@@ -248,32 +266,5 @@ void MARC::ThreadPoolForC::destroy (void){
   /*
    * Join threads.
    */
-  for(auto& thread : m_threads) {
-    if(!thread.joinable()) {
-      continue ;
-    }
-    thread.join();
-  }
-  for (auto flag : this->threadAvailability){
-    delete flag;
-  }
-
-  return ;
-}
-
-std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
-  std::uint64_t s = 0;
-  pthread_spin_lock(&this->cWorkQueuesLock);
-  for (auto queue : this->cWorkQueues) {
-    s += queue->size();
-  }
-  pthread_spin_unlock(&this->cWorkQueuesLock);
-
-  return s;
-}
-
-MARC::ThreadPoolForC::~ThreadPoolForC (void){
-  destroy();
-
   return ;
 }

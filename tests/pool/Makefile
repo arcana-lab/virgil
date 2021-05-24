@@ -1,7 +1,7 @@
 CPP=clang++
 CFLAGS=-std=c++14 -g -I../../include
 LIBS=-pthreads
-PROGRAMS=test1 test2 test3 test4 test5 test6 testHELIX baseline test_extendible stresstest1
+PROGRAMS=test1 test2 test3 test4 test5 test6 testHELIX baseline test_extendible stresstest1 stresstest2
 PROGRAM=baseline
 PROFILER=/usr/bin/time taskset -c 1
 PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
@@ -41,11 +41,15 @@ baseline: baseline.o
 stresstest1: stresstest1.o 
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
+stresstest2: stresstest2.o 
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
 %.o: %.cpp
 	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
 
-performance: stresstest1
-	perf stat ./$< 8 300000 8
+performance: stresstest1 stresstest2
+	perf stat ./stresstest1 8 300000 8
+	perf stat ./stresstest2 8 300000 8
 
 run: $(PROGRAM)
 	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
