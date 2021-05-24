@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <assert.h>
 
 namespace MARC {
 
@@ -107,6 +108,11 @@ namespace MARC {
       void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
+       * Wait for threads.
+       */
+      void waitAllThreadsToBeUnavailable (void) ;
+
+      /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
       virtual void workerFunction (std::atomic_bool *availability, std::uint32_t thread) = 0;
@@ -116,7 +122,6 @@ namespace MARC {
       /*
        * Object fields
        */
-      std::vector<std::atomic_bool *> threadStarted;
       static void workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) ;
   };
 
@@ -164,6 +169,8 @@ void MARC::ThreadPoolInterface::appendCodeToDeconstructor (std::function<void ()
 }
 
 void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
+  assert(!this->m_done);
+
   for (auto i = 0; i < newThreadsToGenerate; i++){
 
     /*
@@ -171,12 +178,6 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
      */
     auto flag = new std::atomic_bool(true);
     this->threadAvailability.push_back(flag);
-
-    /*
-     * Create the start flag.
-     */
-    auto threadStartFlag = new std::atomic_bool(false);
-    this->threadStarted.push_back(threadStartFlag);
 
     /*
      * Create a new thread.
@@ -188,8 +189,15 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
 }
 
 void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
-  (*p->threadStarted[thread]) = true;
+  if (p->m_done){
+    (*availability) = false;
+    return ;
+  }
+  assert(!p->m_done);
   p->workerFunction(availability, thread);
+  (*availability) = false;
+
+  return ;
 }
 
 std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
@@ -206,6 +214,7 @@ std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
 }
 
 void MARC::ThreadPoolInterface::expandPool (void) {
+  assert(!this->m_done);
 
   /*
    * Check whether we are allow to expand the pool or not.
@@ -231,8 +240,17 @@ void MARC::ThreadPoolInterface::expandPool (void) {
 
   return ;
 }
+      
+void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
+  for (auto i=0; i < this->threadAvailability.size(); i++){
+    while (this->threadAvailability[i]);
+  }
+
+  return ;
+}
 
 MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
+  assert(this->m_done);
 
   /*
    * Execute the user code.
@@ -241,13 +259,6 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
     std::function<void ()> code;
     codeToExecuteByTheDeconstructor.waitPop(code);
     code();
-  }
-
-  /*
-   * Wait until all threads have started
-   */
-  for (auto i=0; i < this->threadStarted.size(); i++){
-    while (!*(this->threadStarted[i]));
   }
 
   /*

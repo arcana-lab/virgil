@@ -166,6 +166,9 @@ void MARC::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availabi
       (*availability) = false;
       pTask->execute();
     }
+    if (m_done) {
+      break;
+    }
     if (pTask){
       pTask->setAvailable();
     }
@@ -185,8 +188,13 @@ MARC::ThreadPoolForCSingleQueue::~ThreadPoolForCSingleQueue (void){
   /*
    * Signal threads to quite.
    */
-  m_done = true;
+  this->m_done = true;
   this->cWorkQueue.invalidate();
+
+  /*
+   * Wait for all threads to start or avoid to start.
+   */
+  this->waitAllThreadsToBeUnavailable();
 
   /*
    * Join threads.
