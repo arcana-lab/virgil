@@ -243,7 +243,7 @@ void MARC::ThreadPoolInterface::expandPool (void) {
       
 void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
   for (auto i=0; i < this->threadAvailability.size(); i++){
-    while (this->threadAvailability[i]);
+    while (*(this->threadAvailability[i]));
   }
 
   return ;

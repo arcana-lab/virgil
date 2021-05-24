@@ -296,6 +296,11 @@ MARC::ThreadPool::~ThreadPool (void){
   m_workQueue.invalidate();
 
   /*
+   * Wait for all threads to start or avoid to start.
+   */
+  this->waitAllThreadsToBeUnavailable();
+
+  /*
    * Join threads.
    */
   return ;

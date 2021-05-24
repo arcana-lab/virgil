@@ -263,6 +263,11 @@ MARC::ThreadPoolForCMultiQueues::~ThreadPoolForCMultiQueues (void){
   pthread_spin_unlock(&this->cWorkQueuesLock);
 
   /*
+   * Wait for all threads to start or avoid to start.
+   */
+  this->waitAllThreadsToBeUnavailable();
+
+  /*
    * Join threads.
    */
   return ;
