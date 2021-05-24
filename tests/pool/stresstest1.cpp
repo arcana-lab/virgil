@@ -3,7 +3,7 @@
 #include <math.h>
 #include <pthread.h>
 
-#include "ThreadPoolForCSingleQueue.hpp"
+#include "ThreadPools.hpp"
 #include "work.hpp"
 
 int main (int argc, char *argv[]){
