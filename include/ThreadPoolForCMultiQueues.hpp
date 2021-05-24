@@ -33,6 +33,9 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <sched.h>
+
+typedef int LocalityIsland;
 
 namespace MARC {
 
@@ -47,7 +50,7 @@ namespace MARC {
        *
        * By default, the thread pool is not extendible and it creates at least one thread.
        */
-      ThreadPoolForC (void);
+      ThreadPoolForC(void);
 
       /*
        * Constructor.
@@ -55,16 +58,21 @@ namespace MARC {
       explicit ThreadPoolForC (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
-        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr
-        );
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
 
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
        */
-      virtual void submitAndDetach (
+      void submitAndDetach (
         void (*f) (void *args),
-        void *args
-        ) = 0;
+        void *args,
+        LocalityIsland = 0
+        );
+
+      /*
+       * Return the number of tasks that did not start executing yet.
+       */
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const override ;
 
       /*
        * Destructor.
@@ -81,19 +89,31 @@ namespace MARC {
        */
       ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
 
-    protected:
+    private:
       std::vector<ThreadCTask *> memoryPool;
+      std::vector<bool> memoryPoolAvailability;
       mutable pthread_spinlock_t memoryPoolLock;
 
       /*
-       * Return a free task
+       * Object fields.
        */
-      ThreadCTask * getTask (void);
+      std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
+      mutable pthread_spinlock_t cWorkQueuesLock;
+
+      /*
+       * Constantly running function each thread uses to acquire work items from the queue.
+       */
+      void worker (std::atomic_bool *availability, std::uint32_t thread) override ;
+
+      /*
+       * Invalidates the queue and joins all running threads.
+       */
+      void destroy (void) override ;
   };
 
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC(void)
+MARC::ThreadPoolForC::ThreadPoolForC(void) 
   : ThreadPoolForC{false} 
   {
 
@@ -109,14 +129,37 @@ MARC::ThreadPoolForC::ThreadPoolForC(void)
 MARC::ThreadPoolForC::ThreadPoolForC (
   const bool extendible,
   const std::uint32_t numThreads,
-  std::function <void (void)> codeToExecuteAtDeconstructor
-  ) : ThreadPoolInterface{extendible, numThreads, codeToExecuteAtDeconstructor}
+  std::function <void (void)> codeToExecuteAtDeconstructor)
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
+  pthread_spin_init(&this->cWorkQueuesLock, 0);
+
+  /*
+   * Create 1 queue per thread
+   */
+  for (auto i = 0; i < numThreads; i++){
+    cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
+  }
+
+  /*
+   * Start threads.
+   */
+  try {
+    this->newThreads(numThreads);
+
+  } catch(...) {
+    destroy();
+    throw;
+  }
+
   return ;
 }
 
-MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
+void MARC::ThreadPoolForC::submitAndDetach (
+  void (*f) (void *args),
+  void *args,
+  LocalityIsland li
+  ){
 
   /*
    * Fetch the memory.
@@ -135,12 +178,72 @@ MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
     this->memoryPool.push_back(cTask);
   }
   pthread_spin_unlock(&this->memoryPoolLock);
+  cTask->setFunction(f, args);
 
-  return cTask;
+  /*
+   * Submit the task.
+   */
+  if (this->extendible){
+    pthread_spin_lock(&this->cWorkQueuesLock);
+  }
+
+  this->cWorkQueues.at(li)->push(cTask);
+
+  if (this->extendible){
+    pthread_spin_unlock(&this->cWorkQueuesLock);
+  }
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
+
+  return ;
 }
 
-MARC::ThreadPoolForC::~ThreadPoolForC (void){
+void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread){
+
+
+  auto cpu = sched_getcpu();
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(cpu, &cpuset);
+
+  pthread_t current_thread = pthread_self();
+  pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
+
+  /*
+   * Fetch the queue of the thread
+   */
+  pthread_spin_lock(&this->cWorkQueuesLock);
+  auto threadQueue = this->cWorkQueues.at(thread);
+  pthread_spin_unlock(&this->cWorkQueuesLock);
+
+  while(!m_done) {
+    ThreadCTask *pTask = nullptr;
+    if(threadQueue->waitPop(pTask)) {
+      pTask->execute();
+    }
+    if (pTask){
+      pTask->setAvailable();
+    }
+  }
+
+  return ;
+}
+
+void MARC::ThreadPoolForC::destroy (void){
   MARC::ThreadPoolInterface::destroy();
+
+  /*
+   * Signal threads to quite.
+   */
+  m_done = true;
+  pthread_spin_lock(&this->cWorkQueuesLock);
+  for (auto queue : this->cWorkQueues) {
+    queue->invalidate();
+  }
+  pthread_spin_unlock(&this->cWorkQueuesLock);
 
   /*
    * Join threads.
@@ -154,5 +257,23 @@ MARC::ThreadPoolForC::~ThreadPoolForC (void){
   for (auto flag : this->threadAvailability){
     delete flag;
   }
+
+  return ;
+}
+
+std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {
+  std::uint64_t s = 0;
+  pthread_spin_lock(&this->cWorkQueuesLock);
+  for (auto queue : this->cWorkQueues) {
+    s += queue->size();
+  }
+  pthread_spin_unlock(&this->cWorkQueuesLock);
+
+  return s;
+}
+
+MARC::ThreadPoolForC::~ThreadPoolForC (void){
+  destroy();
+
   return ;
 }

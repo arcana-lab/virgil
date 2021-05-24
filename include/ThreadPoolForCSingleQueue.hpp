@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2021  Simone Campanoni
+ * Copyright 2020 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -9,7 +9,7 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  *
- * The ThreadPoolForC class.
+ * The ThreadPoolForCSingleQueue class.
  * Keeps a set of threads constantly waiting to execute incoming jobs.
  */
 #pragma once
@@ -18,9 +18,7 @@
 #include "ThreadSafeSpinLockQueue.hpp"
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
-#include "ThreadPoolInterface.hpp"
-#include "ThreadSafeMutexQueueSleep.hpp"
-
+#include "ThreadPoolForC.hpp"
 
 #include <assert.h>
 #include <unistd.h>
@@ -39,7 +37,7 @@ namespace MARC {
   /*
    * Thread pool.
    */
-  class ThreadPoolForC : public ThreadPoolInterface {
+  class ThreadPoolForCSingleQueue : public ThreadPoolForC {
     public:
 
       /*
@@ -47,12 +45,12 @@ namespace MARC {
        *
        * By default, the thread pool is not extendible and it creates at least one thread.
        */
-      ThreadPoolForC (void);
+      ThreadPoolForCSingleQueue(void);
 
       /*
        * Constructor.
        */
-      explicit ThreadPoolForC (
+      explicit ThreadPoolForCSingleQueue (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
         std::function <void (void)> codeToExecuteAtDeconstructor = nullptr
@@ -61,40 +59,48 @@ namespace MARC {
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
        */
-      virtual void submitAndDetach (
+      void submitAndDetach (
         void (*f) (void *args),
         void *args
-        ) = 0;
+        ) override;
+
+      /*
+       * Return the number of tasks that did not start executing yet.
+       */
+      std::uint64_t numberOfTasksWaitingToBeProcessed (void) const override ;
 
       /*
        * Destructor.
        */
-      ~ThreadPoolForC(void);
+      ~ThreadPoolForCSingleQueue(void);
 
       /*
        * Non-copyable.
        */
-      ThreadPoolForC(const ThreadPoolForC& rhs) = delete;
+      ThreadPoolForCSingleQueue(const ThreadPoolForCSingleQueue& rhs) = delete;
 
       /*
        * Non-assignable.
        */
-      ThreadPoolForC& operator=(const ThreadPoolForC& rhs) = delete;
+      ThreadPoolForCSingleQueue& operator=(const ThreadPoolForCSingleQueue& rhs) = delete;
 
     protected:
-      std::vector<ThreadCTask *> memoryPool;
-      mutable pthread_spinlock_t memoryPoolLock;
 
       /*
-       * Return a free task
+       * Object fields.
        */
-      ThreadCTask * getTask (void);
+      ThreadSafeMutexQueue<ThreadCTask *> cWorkQueue;
+
+      /*
+       * Constantly running function each thread uses to acquire work items from the queue.
+       */
+      void workerFunction (std::atomic_bool *availability, std::uint32_t thread) override ;
   };
 
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC(void)
-  : ThreadPoolForC{false} 
+MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue(void) 
+  : ThreadPoolForCSingleQueue{false} 
   {
 
   /*
@@ -106,53 +112,85 @@ MARC::ThreadPoolForC::ThreadPoolForC(void)
   return ;
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC (
+MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue (
   const bool extendible,
   const std::uint32_t numThreads,
-  std::function <void (void)> codeToExecuteAtDeconstructor
-  ) : ThreadPoolInterface{extendible, numThreads, codeToExecuteAtDeconstructor}
+  std::function <void (void)> codeToExecuteAtDeconstructor)
+  :
+      cWorkQueue{}
+    , ThreadPoolForC{extendible, numThreads, codeToExecuteAtDeconstructor}
   {
-  pthread_spin_init(&this->memoryPoolLock, 0);
+
+  /*
+   * Start threads.
+   */
+  try {
+    this->newThreads(numThreads);
+
+  } catch(...) {
+    destroy();
+    throw;
+  }
+
   return ;
 }
 
-MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
+void MARC::ThreadPoolForCSingleQueue::submitAndDetach (
+  void (*f) (void *args),
+  void *args
+  ){
 
   /*
    * Fetch the memory.
    */
-  ThreadCTask *cTask = nullptr;
-  pthread_spin_lock(&this->memoryPoolLock);
-  auto poolSize = this->memoryPool.size();
-  for (auto i = 0; i < poolSize; i++){
-    if (this->memoryPool[i]->getAvailability()){
-      cTask = this->memoryPool[i];
-      break ;
-    }
-  }
-  if (cTask == nullptr){
-    cTask = new ThreadCTask(poolSize);
-    this->memoryPool.push_back(cTask);
-  }
-  pthread_spin_unlock(&this->memoryPoolLock);
+  auto cTask = this->getTask();
+  cTask->setFunction(f, args);
 
-  return cTask;
+  /*
+   * Submit the task.
+   */
+  this->cWorkQueue.push(cTask);
+
+  /*
+   * Expand the pool if possible and necessary.
+   */
+  this->expandPool();
+
+  return ;
 }
 
-MARC::ThreadPoolForC::~ThreadPoolForC (void){
-  MARC::ThreadPoolInterface::destroy();
+void MARC::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
+  while(!m_done) {
+    (*availability) = true;
+    ThreadCTask *pTask = nullptr;
+    if(this->cWorkQueue.waitPop(pTask)) {
+      (*availability) = false;
+      pTask->execute();
+    }
+    if (pTask){
+      pTask->setAvailable();
+    }
+  }
+
+  return ;
+}
+
+std::uint64_t MARC::ThreadPoolForCSingleQueue::numberOfTasksWaitingToBeProcessed (void) const {
+  auto s = this->cWorkQueue.size();
+
+  return s;
+}
+
+MARC::ThreadPoolForCSingleQueue::~ThreadPoolForCSingleQueue (void){
+
+  /*
+   * Signal threads to quite.
+   */
+  m_done = true;
+  this->cWorkQueue.invalidate();
 
   /*
    * Join threads.
    */
-  for(auto& thread : m_threads) {
-    if(!thread.joinable()) {
-      continue ;
-    }
-    thread.join();
-  }
-  for (auto flag : this->threadAvailability){
-    delete flag;
-  }
   return ;
 }

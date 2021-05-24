@@ -3,7 +3,7 @@
 #include <math.h>
 #include <pthread.h>
 
-#include "ThreadPoolForC.hpp"
+#include "ThreadPoolForCSingleQueue.hpp"
 #include "work.hpp"
 
 int main (int argc, char *argv[]){
@@ -22,7 +22,7 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPoolForC pool{false, threads};
+  MARC::ThreadPoolForCSingleQueue pool{false, threads};
 
   /*
    * Create the locks

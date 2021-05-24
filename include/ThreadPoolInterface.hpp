@@ -51,7 +51,8 @@ namespace MARC {
       explicit ThreadPoolInterface (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
-        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr
+        );
 
       /*
        * Add code to execute when the threadpool is destroyed.
@@ -101,24 +102,27 @@ namespace MARC {
       void expandPool (void);
 
       /*
-       * Constantly running function each thread uses to acquire work items from the queue.
-       */
-      virtual void worker (std::atomic_bool *availability, std::uint32_t thread) = 0 ;
-
-      /*
        * Start new threads.
        */
       void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
+       * Constantly running function each thread uses to acquire work items from the queue.
+       */
+      virtual void workerFunction (std::atomic_bool *availability, std::uint32_t thread) = 0;
+
+      /*
        * Invalidates the queue and joins all running threads.
        */
       virtual void destroy (void) ;
+
+    private:
+      static void workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) ;
   };
 
 }
 
-MARC::ThreadPoolInterface::ThreadPoolInterface(void) 
+MARC::ThreadPoolInterface::ThreadPoolInterface(void)
   : ThreadPoolInterface{false} 
   {
 
@@ -171,10 +175,14 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
     /*
      * Create a new thread.
      */
-    this->m_threads.emplace_back(&ThreadPoolInterface::worker, this, flag, i);
+    this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
   }
 
   return ;
+}
+
+void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
+  p->workerFunction(availability, thread);
 }
 
 std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
