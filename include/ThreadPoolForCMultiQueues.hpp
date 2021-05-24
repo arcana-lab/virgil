@@ -148,7 +148,6 @@ MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
     this->newThreads(numThreads);
 
   } catch(...) {
-    destroy();
     throw;
   }
 

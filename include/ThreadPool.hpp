@@ -108,11 +108,6 @@ namespace MARC {
        * Constantly running function each thread uses to acquire work items from the queue.
        */
       void workerFunction (std::atomic_bool *availability, std::uint32_t thread) override ;
-
-      /*
-       * Invalidates the queue and joins all running threads.
-       */
-      void destroy (void) override ;
   };
 
 }
@@ -145,7 +140,6 @@ MARC::ThreadPool::ThreadPool (
     this->newThreads(numThreads);
 
   } catch(...) {
-    destroy();
     throw;
   }
 
@@ -287,8 +281,13 @@ void MARC::ThreadPool::workerFunction (std::atomic_bool *availability, std::uint
   return ;
 }
 
-void MARC::ThreadPool::destroy (void){
-  MARC::ThreadPoolInterface::destroy();
+std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
+  auto s = this->m_workQueue.size();
+
+  return s;
+}
+
+MARC::ThreadPool::~ThreadPool (void){
 
   /*
    * Signal threads to quite.
@@ -299,27 +298,5 @@ void MARC::ThreadPool::destroy (void){
   /*
    * Join threads.
    */
-  for(auto& thread : m_threads) {
-    if(!thread.joinable()) {
-      continue ;
-    }
-    thread.join();
-  }
-  for (auto flag : this->threadAvailability){
-    delete flag;
-  }
-
-  return ;
-}
-
-std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  auto s = this->m_workQueue.size();
-
-  return s;
-}
-
-MARC::ThreadPool::~ThreadPool (void){
-  destroy();
-
   return ;
 }

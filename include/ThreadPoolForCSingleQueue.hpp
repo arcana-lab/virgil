@@ -128,7 +128,6 @@ MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue (
     this->newThreads(numThreads);
 
   } catch(...) {
-    destroy();
     throw;
   }
 

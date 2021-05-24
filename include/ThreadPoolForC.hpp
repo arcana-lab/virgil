@@ -142,19 +142,9 @@ MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
 }
 
 MARC::ThreadPoolForC::~ThreadPoolForC (void){
-  MARC::ThreadPoolInterface::destroy();
 
   /*
    * Join threads.
    */
-  for(auto& thread : m_threads) {
-    if(!thread.joinable()) {
-      continue ;
-    }
-    thread.join();
-  }
-  for (auto flag : this->threadAvailability){
-    delete flag;
-  }
   return ;
 }

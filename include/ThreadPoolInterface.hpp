@@ -111,11 +111,6 @@ namespace MARC {
        */
       virtual void workerFunction (std::atomic_bool *availability, std::uint32_t thread) = 0;
 
-      /*
-       * Invalidates the queue and joins all running threads.
-       */
-      virtual void destroy (void) ;
-
     private:
       static void workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) ;
   };
@@ -225,7 +220,7 @@ void MARC::ThreadPoolInterface::expandPool (void) {
   return ;
 }
 
-void MARC::ThreadPoolInterface::destroy (void){
+MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
 
   /*
    * Execute the user code.
@@ -236,11 +231,18 @@ void MARC::ThreadPoolInterface::destroy (void){
     code();
   }
 
-  return ;
-}
-
-MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
-  destroy();
+  /*
+   * Join the threads
+   */
+  for(auto& thread : m_threads) {
+    if(!thread.joinable()) {
+      continue ;
+    }
+    thread.join();
+  }
+  for (auto flag : this->threadAvailability){
+    delete flag;
+  }
 
   return ;
 }
