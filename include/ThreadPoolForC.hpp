@@ -33,6 +33,8 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <optional>
+#include <queue>
 
 namespace MARC {
 
@@ -62,7 +64,8 @@ namespace MARC {
        */
       void submitAndDetach (
         void (*f) (void *args),
-        void *args
+        void *args, 
+        std::uint32_t taskWeight = 1
         );
       
       /*
@@ -71,8 +74,14 @@ namespace MARC {
       void submitToCore (
         std::uint32_t core,
         void (*f) (void *args),
-        void *args
+        void *args, 
+        std::uint32_t taskWeight = 1
       );
+
+      /*
+       * Return a vector indicating the weight of enqueued tasks for each core.
+       */
+      std::vector<uint64_t> getWorkloads();
 
       /*
        * Return the number of tasks that did not start executing yet.
@@ -107,6 +116,8 @@ namespace MARC {
        * Object fields.
        */
       std::vector<ThreadSafeMutexQueue<ThreadCTask*>*> cWorkQueues; 
+      std::vector<std::deque<std::uint32_t>> workQueueWeights; 
+      std::mutex iomutex; // only for debugging
 
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
@@ -118,7 +129,6 @@ namespace MARC {
        */
       void destroy (void) override ;
   };
-
 }
 
 MARC::ThreadPoolForC::ThreadPoolForC(void) 
@@ -139,7 +149,8 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
   :
-    cWorkQueues{}
+    cWorkQueues{},
+    workQueueWeights{}
   {
   pthread_spin_init(&this->memoryPoolLock, 0);
 
@@ -164,6 +175,7 @@ void MARC::ThreadPoolForC::newThreads (std::uint32_t newThreadsToGenerate) {
   for (int start_i = i; i < start_i + newThreadsToGenerate; i++){
 
     cWorkQueues.push_back(new ThreadSafeMutexQueue<ThreadCTask*>());
+    workQueueWeights.push_back(std::deque<std::uint32_t>());
 
     /*
      * Create the availability flag.
@@ -182,12 +194,13 @@ void MARC::ThreadPoolForC::newThreads (std::uint32_t newThreadsToGenerate) {
 
 void MARC::ThreadPoolForC::submitAndDetach (
   void (*f) (void *args),
-  void *args
+  void *args,
+  uint32_t taskWeight 
   ){
   /// TODO: this is a hack.
   static size_t last_core = 0;
-  submitToCore(last_core++ % this->cWorkQueues.size(), f, args);
-  // submitToCore(0, f, args);
+  submitToCore(last_core++ % this->cWorkQueues.size(), f, args, taskWeight);
+  
 
   return;
 }
@@ -195,7 +208,8 @@ void MARC::ThreadPoolForC::submitAndDetach (
 void MARC::ThreadPoolForC::submitToCore (
   std::uint32_t core,
   void (*f) (void *args),
-  void *args
+  void *args,
+  uint32_t taskWeight
   ){
 
   /*
@@ -222,6 +236,7 @@ void MARC::ThreadPoolForC::submitToCore (
    * Submit the task.
    */
   this->cWorkQueues[core]->push(cTask);
+  this->workQueueWeights[core].push_back(taskWeight);
 
   /*
    * Expand the pool if possible and necessary.
@@ -238,6 +253,10 @@ void MARC::ThreadPoolForC::worker (std::uint32_t threadID, std::atomic_bool *ava
     ThreadCTask *pTask = nullptr;
     if(this->cWorkQueues[threadID]->waitPop(pTask)) {
       (*availability) = false;
+      this->workQueueWeights[threadID].pop_front();
+      //iomutex.lock();
+      //std::cout << "Thread #" << threadID << ": on CPU " << sched_getcpu() << "\n";
+      //iomutex.unlock();
       pTask->execute();
     }
     if (pTask){
@@ -285,6 +304,18 @@ void MARC::ThreadPoolForC::destroy (void){
   }
 
   return ;
+}
+
+std::vector<std::uint64_t> MARC::ThreadPoolForC::getWorkloads() {
+  std::vector<std::uint64_t> workloads;
+  for (auto queueWeights : this->workQueueWeights) {
+    std::uint64_t currentLoad = 0; 
+    for (auto weight : queueWeights) {
+      currentLoad += weight; 
+    }
+    workloads.push_back(currentLoad);    
+  }
+  return workloads; 
 }
 
 std::uint64_t MARC::ThreadPoolForC::numberOfTasksWaitingToBeProcessed (void) const {

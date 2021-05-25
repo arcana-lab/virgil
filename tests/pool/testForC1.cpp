@@ -21,13 +21,18 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPoolForC pool(threads);
+  MARC::ThreadPoolForC pool(false, threads);
 
   /*
    * Submit jobs.
    */
   for (auto i=0; i < tasks; i++){
     pool.submitAndDetach(myF, (void*)iters);
+  }
+  
+  auto workload = pool.getWorkloads(); 
+  for (int i = 0; i < workload.size(); i++) {
+    std::cout << "WEIGHT OF QUEUE " << i << " : "  << workload[i] << '\n';
   }
 
   return 0;

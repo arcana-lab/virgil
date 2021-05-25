@@ -13,7 +13,5 @@ void myF (void* iters_){
     }
   }
 
-  std::cout << v << '\n';
-
   return;
 }
