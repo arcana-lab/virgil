@@ -79,9 +79,9 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   task_weight_t lowest_work = std::numeric_limits<task_weight_t>::max();
 
   for (auto& history_element : history_) {
-    std::cout << "PU" << history_element.pu->get_id() << " "
-              << history_element.accumulated_work << " / " << lowest_work
-              << "\n";
+    //std::cout << "PU" << history_element.pu->get_id() << " "
+    //          << history_element.accumulated_work << " / " << lowest_work
+    //          << "\n";
     if (history_element.accumulated_work < lowest_work) {
       lowest_work = history_element.accumulated_work;
       best_pu = history_element.pu->get_id();
@@ -90,7 +90,7 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   }
   best_hist->accumulated_work +=
       weight * arch_.max_pu_strength / best_hist->pu->get_power();
-  std::cout << "I am sending a task to pu " << best_pu << "\n";
+  //std::cout << "I am sending a task to pu " << best_pu << "\n";
   return best_pu;
   // static size_t last_cpu = 0;
   // last_cpu += 1;
