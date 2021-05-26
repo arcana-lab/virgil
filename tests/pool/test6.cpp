@@ -2,7 +2,7 @@
 #include <vector>
 #include <math.h>
 
-#include "ThreadPool.hpp"
+#include "ThreadPools.hpp"
 #include "work.hpp"
 
 int main (int argc, char *argv[]){

@@ -1,12 +1,12 @@
 CPP=clang++
 CFLAGS=-std=c++14 -g -I../../include
 LIBS=-pthreads
-PROGRAMS=test1 test2 test3 test4 test5 test6 testHELIX baseline test_extendible testForC1 testScheduler variableSizeTasksC
+PROGRAMS=test1 test2 test3 test4 test5 test6 testHELIX baseline test_extendible stresstest1 stresstest2 testForC1 testScheduler variableSizeTasksC
 PROGRAM=baseline
 PROFILER=/usr/bin/time taskset -c 1
 PROFILER_PERF=perf record --call-graph fp -e cpu-clock taskset -c 1
 PROFILER_SHOW=perf report --stdio
-OPT=-O3 -fno-inline -fno-omit-frame-pointer
+OPT=-O3 -fno-inline -fno-omit-frame-pointer -march=native
 INPUTS=100000000 0 14
 
 all: $(PROGRAMS)
@@ -47,8 +47,18 @@ variableSizeTasksC: variableSizeTasksC.o
 baseline: baseline.o
 	$(CPP) $(LIBS) $(OPT) $^ -o $@
 
+stresstest1: stresstest1.o 
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
+stresstest2: stresstest2.o 
+	$(CPP) $(LIBS) $(OPT) $^ -o $@
+
 %.o: %.cpp
 	$(CPP) $(CFLAGS) $(OPT) -c $^ -o $@
+
+performance: stresstest1 stresstest2
+	perf stat ./stresstest1 8 300000 8
+	perf stat ./stresstest2 8 300000 8
 
 run: $(PROGRAM)
 	$(PROFILER)  ./$(PROGRAM) $(INPUTS)
@@ -56,4 +66,4 @@ run: $(PROGRAM)
 clean:
 	rm -f *.o $(PROGRAMS) perf.* *.txt
 
-.PHONY: clean run
+.PHONY: clean run performance

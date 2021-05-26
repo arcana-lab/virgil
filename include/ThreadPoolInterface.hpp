@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+#include <assert.h>
 
 namespace MARC {
 
@@ -51,7 +52,8 @@ namespace MARC {
       explicit ThreadPoolInterface (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
-        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr
+        );
 
       /*
        * Add code to execute when the threadpool is destroyed.
@@ -101,24 +103,32 @@ namespace MARC {
       void expandPool (void);
 
       /*
-       * Constantly running function each thread uses to acquire work items from the queue.
-       */
-      virtual void worker (std::uint32_t threadID, std::atomic_bool *availability) = 0 ;
-
-      /*
        * Start new threads.
        */
-      virtual void newThreads (std::uint32_t newThreadsToGenerate);
+      virtual void worker (std::uint32_t threadID, std::atomic_bool *availability) = 0 ;
+      void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*
-       * Invalidates the queue and joins all running threads.
+       * Wait for threads.
        */
-      virtual void destroy (void) ;
+      void waitAllThreadsToBeUnavailable (void) ;
+
+      /*
+       * Constantly running function each thread uses to acquire work items from the queue.
+       */
+      virtual void workerFunction (std::atomic_bool *availability, std::uint32_t thread) = 0;
+
+    private:
+
+      /*
+       * Object fields
+       */
+      static void workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) ;
   };
 
 }
 
-MARC::ThreadPoolInterface::ThreadPoolInterface(void) 
+MARC::ThreadPoolInterface::ThreadPoolInterface(void)
   : ThreadPoolInterface{false} 
   {
 
@@ -160,6 +170,8 @@ void MARC::ThreadPoolInterface::appendCodeToDeconstructor (std::function<void ()
 }
 
 void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
+  assert(!this->m_done);
+
   for (auto i = 0; i < newThreadsToGenerate; i++){
 
     /*
@@ -171,8 +183,20 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
     /*
      * Create a new thread.
      */
-    this->m_threads.emplace_back(&ThreadPoolInterface::worker, this, i, flag);
+    this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
   }
+
+  return ;
+}
+
+void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
+  if (p->m_done){
+    (*availability) = false;
+    return ;
+  }
+  assert(!p->m_done);
+  p->workerFunction(availability, thread);
+  (*availability) = false;
 
   return ;
 }
@@ -191,6 +215,7 @@ std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
 }
 
 void MARC::ThreadPoolInterface::expandPool (void) {
+  assert(!this->m_done);
 
   /*
    * Check whether we are allow to expand the pool or not.
@@ -216,8 +241,17 @@ void MARC::ThreadPoolInterface::expandPool (void) {
 
   return ;
 }
+      
+void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
+  for (auto i=0; i < this->threadAvailability.size(); i++){
+    while (*(this->threadAvailability[i]));
+  }
 
-void MARC::ThreadPoolInterface::destroy (void){
+  return ;
+}
+
+MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
+  assert(this->m_done);
 
   /*
    * Execute the user code.
@@ -228,11 +262,18 @@ void MARC::ThreadPoolInterface::destroy (void){
     code();
   }
 
-  return ;
-}
-
-MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
-  destroy();
+  /*
+   * Join the threads
+   */
+  for(auto& thread : m_threads) {
+    if(!thread.joinable()) {
+      continue ;
+    }
+    thread.join();
+  }
+  for (auto flag : this->threadAvailability){
+    delete flag;
+  }
 
   return ;
 }

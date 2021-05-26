@@ -73,12 +73,17 @@ namespace MARC {
 
       void setFunction (void (*f) (void *args), void *args);
 
+      bool getAvailability();
+      void setAvailable();
+
     private:
       void (*m_func) (void *args);
       void *args;
       cpu_set_t cores;
       bool useAffinity;
+      bool available;
       uint64_t ID;
+      mutable pthread_spinlock_t availabilityLock;
   };
 
 }
@@ -86,7 +91,9 @@ namespace MARC {
 MARC::ThreadCTask::ThreadCTask (uint64_t ID)
   : useAffinity{false}
   , ID{ID}
+  , available{false}
 {
+  pthread_spin_init(&this->availabilityLock, 0);
   return ;
 }
 
@@ -100,7 +107,10 @@ MARC::ThreadCTask::ThreadCTask (
   , args{args}
   , useAffinity{false}
   , ID{ID}
+  , available{false}
   {
+
+  pthread_spin_init(&this->availabilityLock, 0);
   return ;
 }
 
@@ -116,7 +126,9 @@ MARC::ThreadCTask::ThreadCTask (
   cores{coresToUse},
   useAffinity{true}
   , ID{ID}
+  , available{false}
   {
+  pthread_spin_init(&this->availabilityLock, 0);
   return ;
 }
 
@@ -145,7 +157,28 @@ void MARC::ThreadCTask::execute (void){
 
   return ;
 }
-      
+
+bool MARC::ThreadCTask::getAvailability() {
+  auto ret = false;
+
+  if(available) {
+    pthread_spin_lock(&this->availabilityLock);
+    if(available) {
+      available = false;
+      ret = true;
+    }
+    pthread_spin_unlock(&this->availabilityLock);
+  }
+
+  return ret;
+}
+
+void MARC::ThreadCTask::setAvailable() {
+  pthread_spin_lock(&this->availabilityLock);
+  available = true;
+  pthread_spin_unlock(&this->availabilityLock);
+}
+
 std::uint64_t MARC::ThreadCTask::getID (void) const {
   return this->ID;
 }

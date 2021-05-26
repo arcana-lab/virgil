@@ -107,12 +107,7 @@ namespace MARC {
       /*
        * Constantly running function each thread uses to acquire work items from the queue.
        */
-      void worker (std::uint32_t threadID, std::atomic_bool *availability) override ;
-
-      /*
-       * Invalidates the queue and joins all running threads.
-       */
-      void destroy (void) override ;
+      void workerFunction (std::atomic_bool *availability, std::uint32_t thread) override ;
   };
 
 }
@@ -145,7 +140,6 @@ MARC::ThreadPool::ThreadPool (
     this->newThreads(numThreads);
 
   } catch(...) {
-    destroy();
     throw;
   }
 
@@ -287,7 +281,7 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   return ;
 }
 
-void MARC::ThreadPool::worker (std::uint32_t threadID, std::atomic_bool *availability) {
+void MARC::ThreadPool::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
   while(!m_done) {
     (*availability) = true;
     std::unique_ptr<IThreadTask> pTask{nullptr};
@@ -303,8 +297,13 @@ void MARC::ThreadPool::worker (std::uint32_t threadID, std::atomic_bool *availab
   return ;
 }
 
-void MARC::ThreadPool::destroy (void){
-  MARC::ThreadPoolInterface::destroy();
+std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
+  auto s = this->m_workQueue.size();
+
+  return s;
+}
+
+MARC::ThreadPool::~ThreadPool (void){
 
   /*
    * Signal threads to quite.
@@ -314,31 +313,12 @@ void MARC::ThreadPool::destroy (void){
     queue.invalidate();
 
   /*
+   * Wait for all threads to start or avoid to start.
+   */
+  this->waitAllThreadsToBeUnavailable();
+
+  /*
    * Join threads.
    */
-  for(auto& thread : m_threads) {
-    if(!thread.joinable()) {
-      continue ;
-    }
-    thread.join();
-  }
-  for (auto flag : this->threadAvailability){
-    delete flag;
-  }
-
-  return ;
-}
-
-std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
-  std::uint64_t s; 
-  for (auto &queue : m_workQueues)
-    s += queue.size(); 
-
-  return s;
-}
-
-MARC::ThreadPool::~ThreadPool (void){
-  destroy();
-
   return ;
 }
