@@ -6,7 +6,7 @@
 // #include <optional>
 
 #include "Architecture.hpp"
-#include "ThreadPoolForC.hpp"
+#include "ThreadPoolForCMultiQueues.hpp"
 
 typedef size_t task_weight_t;
 
@@ -16,7 +16,7 @@ class Architecture;
 
 class Scheduler {
 public:
-  Scheduler(MARC::ThreadPoolForC& pool, const Architecture& arch);
+  Scheduler(MARC::ThreadPoolForCMultiQueues& pool, const Architecture& arch);
 
   /// Submit a C function for execution on the most appropriate core.
   /// @param f Function to execute
@@ -45,14 +45,15 @@ private:
   const Architecture& arch_;
 
   /// VIRGIL ThreadPool
-  MARC::ThreadPoolForC& pool_;
+  MARC::ThreadPoolForCMultiQueues& pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /* Implementation below here */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-Scheduler::Scheduler(MARC::ThreadPoolForC& pool, const Architecture& arch)
+Scheduler::Scheduler(MARC::ThreadPoolForCMultiQueues& pool,
+                     const Architecture& arch)
     : arch_(arch)
     , pool_(pool) {
 
@@ -66,8 +67,9 @@ size_t Scheduler::submitAndDetach(void (*f)(void*), void* args,
                                   task_weight_t weight,
                                   size_t locality_island) {
 
-  const size_t best_core = find_best_pu(weight);
-  pool_.submitToCore(best_core, f, args);
+  const size_t best_core = find_best_pu(
+      1000 * weight); /* Multiply by 1000 to allow more granularity */
+  pool_.submitAndDetach(f, args, best_core);
   return best_core;
 }
 
@@ -79,9 +81,9 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   task_weight_t lowest_work = std::numeric_limits<task_weight_t>::max();
 
   for (auto& history_element : history_) {
-    //std::cout << "PU" << history_element.pu->get_id() << " "
-    //          << history_element.accumulated_work << " / " << lowest_work
-    //          << "\n";
+    // std::cout << "PU" << history_element.pu->get_id() << " "
+    //           << history_element.accumulated_work << " / " << lowest_work
+    //           << "\n";
     if (history_element.accumulated_work < lowest_work) {
       lowest_work = history_element.accumulated_work;
       best_pu = history_element.pu->get_id();
@@ -90,11 +92,6 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   }
   best_hist->accumulated_work +=
       weight * arch_.max_pu_strength / best_hist->pu->get_power();
-  //std::cout << "I am sending a task to pu " << best_pu << "\n";
+  // std::cout << "I am sending a task to pu " << best_pu << "\n";
   return best_pu;
-  // static size_t last_cpu = 0;
-  // last_cpu += 1;
-  // last_cpu %= arch_.num_pus();
-  // return last_cpu;
-}
 } // namespace MARC
