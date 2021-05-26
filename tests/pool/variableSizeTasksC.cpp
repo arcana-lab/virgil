@@ -7,6 +7,7 @@
 #include "workForCLinear.hpp"
 #include "Architecture.hpp"
 #include "Scheduler.hpp"
+#include "TaskDistribution.hpp"
 
 
 int main (int argc, char *argv[]){
@@ -30,11 +31,16 @@ int main (int argc, char *argv[]){
   MARC::Scheduler scheduler(pool, arch);
 
   /*
-   * Submit jobs.
-   * Number of iterations per task is *almost* uniformly chosen from [1, MAX_ITERS]
+   * Get a distribution of iters for every task
+   */ 
+
+  std::vector<std::uint32_t> iterDistribution = getUniformDistribution(tasks, max_iters);
+
+  /*
+   * Submit jobs with weight given by distribution
    */
   for (auto i=0; i < tasks; i++){
-    auto iters = rand() % max_iters + 1;
+    auto iters = iterDistribution[i];
     scheduler.submitAndDetach(myF, (void*)iters, iters*iters*iters, 0);
   }
 
