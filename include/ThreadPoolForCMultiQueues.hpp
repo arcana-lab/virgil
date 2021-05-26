@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 - 2021  Simone Campanoni
+ * Copyright 2020 - 2021  Simone Campanoni
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
@@ -9,7 +9,7 @@
  * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  *
- * The ThreadPoolForC class.
+ * The ThreadPoolForCMultiQueues class.
  * Keeps a set of threads constantly waiting to execute incoming jobs.
  */
 #pragma once
@@ -19,7 +19,6 @@
 #include "ThreadCTask.hpp"
 #include "TaskFuture.hpp"
 #include "ThreadPoolForC.hpp"
-#include "ThreadSafeMutexQueueSleep.hpp"
 
 #include <assert.h>
 #include <unistd.h>
@@ -57,7 +56,8 @@ namespace MARC {
       explicit ThreadPoolForCMultiQueues (
         const bool extendible,
         const std::uint32_t numThreads = std::max(std::thread::hardware_concurrency(), 2u) - 1u,
-        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr);
+        std::function <void (void)> codeToExecuteAtDeconstructor = nullptr
+        );
 
       /*
        * Submit a job to be run by the thread pool and detach it from the caller.
@@ -96,7 +96,7 @@ namespace MARC {
        */
       ThreadPoolForCMultiQueues& operator=(const ThreadPoolForCMultiQueues& rhs) = delete;
 
-    private:
+    protected:
 
       /*
        * Object fields.
@@ -129,7 +129,7 @@ MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
-  :   
+  :
       ThreadPoolForC{extendible, numThreads, codeToExecuteAtDeconstructor}
   {
   pthread_spin_init(&this->cWorkQueuesLock, 0);
@@ -231,6 +231,9 @@ void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availabi
       (*availability) = false;
       pTask->execute();
     }
+    if (m_done) {
+      break;
+    }
     if (pTask){
       pTask->setAvailable();
     }
@@ -255,7 +258,7 @@ MARC::ThreadPoolForCMultiQueues::~ThreadPoolForCMultiQueues (void){
   /*
    * Signal threads to quite.
    */
-  m_done = true;
+  this->m_done = true;
   pthread_spin_lock(&this->cWorkQueuesLock);
   for (auto queue : this->cWorkQueues) {
     queue->invalidate();
