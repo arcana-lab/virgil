@@ -105,7 +105,6 @@ namespace MARC {
       /*
        * Start new threads.
        */
-      virtual void worker (std::uint32_t threadID, std::atomic_bool *availability) = 0 ;
       void newThreads (std::uint32_t newThreadsToGenerate);
 
       /*

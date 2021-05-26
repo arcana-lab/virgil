@@ -6,7 +6,7 @@
 // #include <optional>
 
 #include "Architecture.hpp"
-#include "ThreadPoolForC.hpp"
+#include "ThreadPoolForCMultiQueues.hpp"
 
 typedef size_t task_weight_t;
 
@@ -16,7 +16,7 @@ class Architecture;
 
 class Scheduler {
 public:
-  Scheduler(MARC::ThreadPoolForC& pool, const Architecture& arch);
+  Scheduler(MARC::ThreadPoolForCMultiQueues& pool, const Architecture& arch);
 
   /// Submit a C function for execution on the most appropriate core.
   /// @param f Function to execute
@@ -45,14 +45,15 @@ private:
   const Architecture& arch_;
 
   /// VIRGIL ThreadPool
-  MARC::ThreadPoolForC& pool_;
+  MARC::ThreadPoolForCMultiQueues& pool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /* Implementation below here */
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-Scheduler::Scheduler(MARC::ThreadPoolForC& pool, const Architecture& arch)
+Scheduler::Scheduler(MARC::ThreadPoolForCMultiQueues& pool,
+                     const Architecture& arch)
     : arch_(arch)
     , pool_(pool) {
 
@@ -68,7 +69,7 @@ size_t Scheduler::submitAndDetach(void (*f)(void*), void* args,
 
   const size_t best_core = find_best_pu(
       1000 * weight); /* Multiply by 1000 to allow more granularity */
-  pool_.submitToCore(best_core, f, args);
+  pool_.submitAndDetach(f, args, best_core);
   return best_core;
 }
 

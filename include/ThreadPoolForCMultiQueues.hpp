@@ -202,7 +202,7 @@ void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availabi
   /*
    * Fetch the current core the thread is running on
    */
-  auto cpu = sched_getcpu();
+  auto cpu = thread;
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu, &cpuset);
