@@ -66,7 +66,8 @@ size_t Scheduler::submitAndDetach(void (*f)(void*), void* args,
                                   task_weight_t weight,
                                   size_t locality_island) {
 
-  const size_t best_core = find_best_pu(weight);
+  const size_t best_core = find_best_pu(
+      1000 * weight); /* Multiply by 1000 to allow more granularity */
   pool_.submitToCore(best_core, f, args);
   return best_core;
 }
@@ -79,9 +80,9 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   task_weight_t lowest_work = std::numeric_limits<task_weight_t>::max();
 
   for (auto& history_element : history_) {
-    std::cout << "PU" << history_element.pu->get_id() << " "
-              << history_element.accumulated_work << " / " << lowest_work
-              << "\n";
+    // std::cout << "PU" << history_element.pu->get_id() << " "
+    //           << history_element.accumulated_work << " / " << lowest_work
+    //           << "\n";
     if (history_element.accumulated_work < lowest_work) {
       lowest_work = history_element.accumulated_work;
       best_pu = history_element.pu->get_id();
@@ -90,11 +91,20 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   }
   best_hist->accumulated_work +=
       weight * arch_.max_pu_strength / best_hist->pu->get_power();
-  std::cout << "I am sending a task to pu " << best_pu << "\n";
+  // std::cout << "I am sending a task to pu " << best_pu << "\n";
   return best_pu;
+
   // static size_t last_cpu = 0;
   // last_cpu += 1;
   // last_cpu %= arch_.num_pus();
+  // return last_cpu;
+
+  // static size_t last_cpu = 24;
+  // if (last_cpu != 24) {
+  //   last_cpu = 24;
+  // } else {
+  //   last_cpu = 26;
+  // }
   // return last_cpu;
 }
 } // namespace MARC

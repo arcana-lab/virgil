@@ -247,7 +247,15 @@ void MARC::ThreadPoolForC::submitToCore (
 }
 
 void MARC::ThreadPoolForC::worker (std::uint32_t threadID, std::atomic_bool *availability){
-
+  cpu_set_t cores;
+  CPU_ZERO(&cores);
+  CPU_SET(threadID, &cores);
+  auto self = pthread_self();
+  auto exitCode = pthread_setaffinity_np(self, sizeof(cpu_set_t), &cores);
+  if (exitCode != 0) {
+    std::cerr << "ThreadPool: Error calling pthread_setaffinity_np: " << exitCode << std::endl;
+    abort();
+  }
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
