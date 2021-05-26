@@ -4,8 +4,10 @@
 
 #include "ThreadPoolForC.hpp"
 #include "workForC.hpp"
+#include "workForCLinear.hpp"
 #include "Architecture.hpp"
 #include "Scheduler.hpp"
+
 
 int main (int argc, char *argv[]){
 
@@ -27,14 +29,13 @@ int main (int argc, char *argv[]){
   const MARC::Architecture arch;
   MARC::Scheduler scheduler(pool, arch);
 
-
   /*
    * Submit jobs.
    * Number of iterations per task is *almost* uniformly chosen from [1, MAX_ITERS]
    */
   for (auto i=0; i < tasks; i++){
     auto iters = rand() % max_iters + 1;
-    scheduler.submitAndDetach(myF, (void*)iters, 1, 0);
+    scheduler.submitAndDetach(myF, (void*)iters, iters*iters*iters, 0);
   }
 
   return 0;

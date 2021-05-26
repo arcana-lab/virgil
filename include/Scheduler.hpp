@@ -94,18 +94,4 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
       weight * arch_.max_pu_strength / best_hist->pu->get_power();
   // std::cout << "I am sending a task to pu " << best_pu << "\n";
   return best_pu;
-
-  // static size_t last_cpu = 0;
-  // last_cpu += 1;
-  // last_cpu %= arch_.num_pus();
-  // return last_cpu;
-
-  // static size_t last_cpu = 24;
-  // if (last_cpu != 24) {
-  //   last_cpu = 24;
-  // } else {
-  //   last_cpu = 26;
-  // }
-  // return last_cpu;
-}
 } // namespace MARC
