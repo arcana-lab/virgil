@@ -2,7 +2,7 @@
 #include <vector>
 #include <math.h>
 
-#include "ThreadPoolForC.hpp"
+#include "ThreadPoolForCMultiQueues.hpp"
 #include "workForC.hpp"
 
 int main (int argc, char *argv[]){
@@ -21,7 +21,7 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPoolForC pool(false, threads);
+  MARC::ThreadPoolForCMultiQueues pool(false, threads);
 
   /*
    * Submit jobs.
@@ -30,10 +30,10 @@ int main (int argc, char *argv[]){
     pool.submitAndDetach(myF, (void*)iters);
   }
   
-  auto workload = pool.getWorkloads(); 
-  for (int i = 0; i < workload.size(); i++) {
-    std::cout << "WEIGHT OF QUEUE " << i << " : "  << workload[i] << '\n';
-  }
+  // auto workload = pool.getWorkloads(); 
+  // for (int i = 0; i < workload.size(); i++) {
+  //   std::cout << "WEIGHT OF QUEUE " << i << " : "  << workload[i] << '\n';
+  // }
 
   return 0;
 }

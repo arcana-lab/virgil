@@ -101,7 +101,7 @@ namespace MARC {
       /*
        * Object fields.
        */
-      std::vector<ThreadSafeSpinLockQueue<ThreadCTask *>*> cWorkQueues;
+      std::vector<ThreadSafeMutexQueue<ThreadCTask *>*> cWorkQueues;
       mutable pthread_spinlock_t cWorkQueuesLock;
 
       /*
@@ -138,7 +138,7 @@ MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
    * Create 1 queue per thread
    */
   for (auto i = 0; i < numThreads; i++){
-    cWorkQueues.push_back(new ThreadSafeSpinLockQueue<ThreadCTask *>);
+    cWorkQueues.push_back(new ThreadSafeMutexQueue<ThreadCTask *>);
   }
 
   /*

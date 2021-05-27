@@ -268,11 +268,13 @@ const std::vector<Core*>& Socket::get_cores() const { return this->cores_; }
 Architecture::Architecture() {
 
   max_pu_strength = 100000;
-  PU* pu_a0 = new PU(24, 100000);
-  PU* pu_a1 = new PU(26, 70000);
+  PU* pu_a0 = new PU(20, 100000);
+  PU* pu_a1 = new PU(22, 70000);
+  PU* pu_a2 = new PU(24, 70000);
+  PU* pu_a3 = new PU(26, 70000);
 
   NumaNode* numa_node = new NumaNode();
-  std::vector<PU*> pus = {pu_a0, pu_a1};
+  std::vector<PU*> pus = {pu_a0, pu_a1, pu_a2, pu_a3};
   Core* core = new Core(numa_node, pus, nullptr, nullptr, nullptr);
   Socket* socket = new Socket({core});
 

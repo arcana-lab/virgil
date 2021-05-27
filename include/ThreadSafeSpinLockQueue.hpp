@@ -23,6 +23,8 @@
 #include <thread>
 #include <chrono>
 
+#include <cstdlib>
+
 
 #include "ThreadSafeQueue.hpp"
 
