@@ -29,6 +29,8 @@ public:
   size_t submitAndDetach(void (*f)(void*), void* args, task_weight_t weight,
                          size_t locality_island);
 
+  void printWorkHistories();
+
 private:
   /// @param weight The weight of the task to submit
   /// @return the most ideal pu to submit a new task to given a task weight
@@ -103,5 +105,11 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   uint64_t ret = last_cpu;
   last_cpu += 2;
   return ret;
+}
+
+void Scheduler::printWorkHistories() {
+  for (auto& history_element : history_) {
+    std::cout << "PU #" << history_element.pu->get_id() << " : "  << history_element.accumulated_work << '\n';
+  }
 }
 } // namespace MARC

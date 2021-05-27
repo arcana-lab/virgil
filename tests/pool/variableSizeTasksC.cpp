@@ -65,5 +65,7 @@ int main (int argc, char *argv[]){
     // pool.submitAndDetach(myF, (void*)iters);
   }
 
+  scheduler.printWorkHistories();
+
   return 0;
 }
