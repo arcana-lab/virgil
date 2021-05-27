@@ -37,7 +37,7 @@ namespace MARC {
        * Will block until a value is available unless clear is called or the instance is destructed.
        * Returns true if a value was successfully written to the out parameter, false otherwise.
        */
-      virtual bool waitPop (T& out) = 0;
+      virtual bool waitPop (T& out, uint64_t core) = 0;
       virtual bool waitPop (void) = 0;
 
       /*

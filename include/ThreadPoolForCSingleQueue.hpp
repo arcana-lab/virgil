@@ -162,7 +162,7 @@ void MARC::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availabi
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
-    if(this->cWorkQueue.waitPop(pTask)) {
+    if(this->cWorkQueue.waitPop(pTask, thread)) {
       (*availability) = false;
       pTask->execute();
     }

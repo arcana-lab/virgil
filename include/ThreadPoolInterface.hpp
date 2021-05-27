@@ -168,6 +168,8 @@ void MARC::ThreadPoolInterface::appendCodeToDeconstructor (std::function<void ()
   return ;
 }
 
+extern std::vector<std::chrono::nanoseconds> thread_idle_times;
+
 void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
   assert(!this->m_done);
 
@@ -183,6 +185,8 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
      * Create a new thread.
      */
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
+
+    thread_idle_times.push_back(std::chrono::nanoseconds(0));
   }
 
   return ;
@@ -257,7 +261,7 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
    */
   while (codeToExecuteByTheDeconstructor.size() > 0){
     std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code);
+    codeToExecuteByTheDeconstructor.waitPop(code, ~0ULL);
     code();
   }
 
@@ -272,6 +276,12 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
   }
   for (auto flag : this->threadAvailability){
     delete flag;
+  }
+
+  uint64_t core = 0;
+  for (auto time : thread_idle_times) {
+    std::cout << "Core " << core << " was idle for " << time.count() << " ns\n";
+    core += 1;
   }
 
   return ;
