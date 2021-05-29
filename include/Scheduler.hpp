@@ -3,6 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <queue>
+#include <iomanip>
+
 // #include <optional>
 
 #include "Architecture.hpp"
@@ -42,6 +44,7 @@ private:
   };
 
   std::vector<PUWorkHistory> history_;
+  std::vector<PUWorkHistory> trueHistory;
 
   /// Architecture
   const Architecture& arch_;
@@ -62,6 +65,7 @@ Scheduler::Scheduler(MARC::ThreadPoolForCMultiQueues& pool,
   // Initialize the work history
   for (auto* pu : arch_.get_pus()) {
     history_.emplace_back(PUWorkHistory{pu, 0});
+    trueHistory.emplace_back(PUWorkHistory{pu, 0});
   }
 }
 
@@ -81,21 +85,32 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
   PUWorkHistory* best_hist = nullptr;
   pu_id_t best_pu = 0;
   task_weight_t lowest_work = std::numeric_limits<task_weight_t>::max();
+  //std::cout << "SUBMITTING TASK WITH WEIGHT: " << weight << '\n';
+
+  int i = 0;
+  int j;
 
   for (auto& history_element : history_) {
     // std::cout << "PU" << history_element.pu->get_id() << " "
     //           << history_element.accumulated_work << " / " << lowest_work
     //           << "\n";
-    if (history_element.accumulated_work < lowest_work) {
-      lowest_work = history_element.accumulated_work;
+    auto total_work = history_element.accumulated_work + (weight * arch_.max_pu_strength / history_element.pu->get_power());
+    //std::cout << std::setw(15) << "PU " << history_element.pu->get_id() << std::setw(25) << "CURR WORK: " << history_element.accumulated_work; 
+    //std::cout << std::setw(25) << " TOTAL WORK : " << total_work  << std::setw(25) << '\n';
+    if (total_work < lowest_work) {
+      lowest_work = total_work;
       best_pu = history_element.pu->get_id();
       best_hist = &history_element;
+      j = i;
     }
+    i++;
   }
   best_hist->accumulated_work +=
       weight * arch_.max_pu_strength / best_hist->pu->get_power();
-  // std::cout << "I am sending a task to pu " << best_pu << "\n";
-  return best_pu;
+
+  //std::cout << "I am sending a task with weight : " << weight << " to : " << best_pu << "\n\n";
+  //trueHistory[j].accumulated_work += weight;
+  //return best_pu;
 
   static uint64_t last_cpu = 20;
   if (last_cpu == 28) {
@@ -104,11 +119,13 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
 
   uint64_t ret = last_cpu;
   last_cpu += 2;
+  //std::cout << "I am sending a task with weight : " << weight << " to : " << ret << "\n\n";
+  trueHistory[(ret - 20)/2].accumulated_work += weight;
   return ret;
 }
 
 void Scheduler::printWorkHistories() {
-  for (auto& history_element : history_) {
+  for (auto& history_element : trueHistory) {
     std::cout << "PU #" << history_element.pu->get_id() << " : "  << history_element.accumulated_work << '\n';
   }
 }

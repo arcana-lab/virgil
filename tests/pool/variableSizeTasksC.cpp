@@ -31,7 +31,7 @@ int main (int argc, char *argv[]){
   const MARC::Architecture arch;
   MARC::Scheduler scheduler(pool, arch);
 
-  srand(0);
+  srand(2);
 
   /*
    * Get a distribution of iters for every task
@@ -62,10 +62,16 @@ int main (int argc, char *argv[]){
   for (auto i=0; i < tasks; i++){
     auto iters = iterDistribution[i];
     scheduler.submitAndDetach(myF, (void*)iters, iters, 0);
-    // pool.submitAndDetach(myF, (void*)iters);
   }
 
+  std::cout << '\n';
   scheduler.printWorkHistories();
 
+  std::cout << '\n';
+  for (auto e : iterDistribution) {
+    std::cout << "TASK WEIGHT : " << e << '\n';
+  }
+  std::cout << "NUMBER OF TASKS : " << iterDistribution.size() << '\n';
+  
   return 0;
 }

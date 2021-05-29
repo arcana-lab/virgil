@@ -10,10 +10,11 @@ void myF (void* iters_){
   // for (auto i=0; i < iters; i++){
   //   for (auto i=0; i < iters; i++){
       for (auto i=0; i < iters; i++){
-        data[rand() % (0x10000 - 1)] = v = sqrt(v);
+        data[rand() % (0x10000 - 1)] = v = sqrt(v + (rand() % 5));
       }
   //   }
   // }
 
+  std::cout << "RESULT IS: " << v << '\n';
   return;
 }
