@@ -11,6 +11,8 @@
 #include "ThreadPoolForCSingleQueue.hpp"
 
 
+extern pthread_spinlock_t locks[0x10000];
+
 int main (int argc, char *argv[]){
 
   /*
@@ -59,19 +61,28 @@ int main (int argc, char *argv[]){
   /*
    * Submit jobs with weight given by distribution
    */
+
+  for (int i = 0; i < 16 * tasks; i += 16) {
+    pthread_spin_init(&locks[i], 0);
+  }
+
   for (auto i=0; i < tasks; i++){
     auto iters = iterDistribution[i];
-    scheduler.submitAndDetach(myF, (void*)iters, iters, 0);
+    struct myFargs* args = (struct myFargs*)malloc(sizeof(struct myFargs));
+    args->iters = iters;
+    args->task_id = i;
+    args->lock = &locks[i * 16];
+    pthread_spin_lock(args->lock);
+    scheduler.submitAndDetach(myF, (void*)args, iters*iters, 0);
+    // pool.submitAndDetach(myF, (void*)iters);
   }
 
   std::cout << '\n';
   scheduler.printWorkHistories();
 
-  std::cout << '\n';
-  for (auto e : iterDistribution) {
-    std::cout << "TASK WEIGHT : " << e << '\n';
+  for (int i = 0; i < 16 * tasks; i += 16) {
+    pthread_spin_lock(&locks[i]);
   }
-  std::cout << "NUMBER OF TASKS : " << iterDistribution.size() << '\n';
-  
+
   return 0;
 }
