@@ -33,7 +33,7 @@ int main (int argc, char *argv[]){
   const MARC::Architecture arch;
   MARC::Scheduler scheduler(pool, arch);
 
-  srand(2);
+  srand(4);
 
   /*
    * Get a distribution of iters for every task

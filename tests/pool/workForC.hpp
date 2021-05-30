@@ -28,6 +28,6 @@ void myF(void* args) {
 
   pthread_spin_unlock(((struct myFargs*)args)->lock);
 
-  std::cout << "RESULT IS: " << v << '\n';
+  //std::cout << "RESULT IS: " << v << '\n';
   return;
 }
