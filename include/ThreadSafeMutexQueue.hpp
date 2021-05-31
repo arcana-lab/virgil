@@ -45,7 +45,7 @@ namespace MARC {
        * Will block until a value is available unless clear is called or the instance is destructed.
        * Returns true if a value was successfully written to the out parameter, false otherwise.
        */
-      bool waitPop (T& out, uint64_t core) override ;
+      bool waitPop (T& out) override ;
       bool waitPop (void) override ;
 
       /*
@@ -140,7 +140,7 @@ bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
 std::vector<std::chrono::nanoseconds> thread_idle_times = {};
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out, uint64_t core){
+bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -156,16 +156,12 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out, uint64_t core){
    * Check if the queue is empty.
    */
   if (Base::m_queue.empty()){
-    auto start = std::chrono::system_clock::now();
+    // auto start = std::chrono::system_clock::now();
 
     /*
      * Wait until the queue will be in a valid state and it will be not empty.
      */
     this->internal_waitWhileEmpty(lock);
-
-    if (core != ~0ULL) {
-      thread_idle_times[core] += std::chrono::system_clock::now() - start;
-    }
   }
 
   /*

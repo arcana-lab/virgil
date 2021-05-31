@@ -261,7 +261,7 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
    */
   while (codeToExecuteByTheDeconstructor.size() > 0){
     std::function<void ()> code;
-    codeToExecuteByTheDeconstructor.waitPop(code, ~0ULL);
+    codeToExecuteByTheDeconstructor.waitPop(code);
     code();
   }
 

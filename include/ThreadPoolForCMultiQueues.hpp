@@ -227,7 +227,7 @@ void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availabi
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
-    if(threadQueue->waitPop(pTask, thread)) {
+    if(threadQueue->waitPop(pTask)) {
       (*availability) = false;
       pTask->execute();
     }

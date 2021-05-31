@@ -89,28 +89,29 @@ size_t Scheduler::find_best_pu(task_weight_t weight) {
 
   int i = 0;
   int j;
+// #ifndef RR_SCHEDULER
+//   for (auto& history_element : history_) {
+//     // std::cout << "PU" << history_element.pu->get_id() << " "
+//     //           << history_element.accumulated_work << " / " << lowest_work
+//     //           << "\n";
+//     auto total_work = history_element.accumulated_work + (weight * arch_.max_pu_strength / history_element.pu->get_power());
+//     //std::cout << std::setw(15) << "PU " << history_element.pu->get_id() << std::setw(25) << "CURR WORK: " << history_element.accumulated_work; 
+//     //std::cout << std::setw(25) << " TOTAL WORK : " << total_work  << std::setw(25) << '\n';
+//     if (total_work < lowest_work) {
+//       lowest_work = total_work;
+//       best_pu = history_element.pu->get_id();
+//       best_hist = &history_element;
+//       j = i;
+//     }
+//     i++;
+//   }
+//   best_hist->accumulated_work +=
+//       weight * arch_.max_pu_strength / best_hist->pu->get_power();
 
-  for (auto& history_element : history_) {
-    // std::cout << "PU" << history_element.pu->get_id() << " "
-    //           << history_element.accumulated_work << " / " << lowest_work
-    //           << "\n";
-    auto total_work = history_element.accumulated_work + (weight * arch_.max_pu_strength / history_element.pu->get_power());
-    //std::cout << std::setw(15) << "PU " << history_element.pu->get_id() << std::setw(25) << "CURR WORK: " << history_element.accumulated_work; 
-    //std::cout << std::setw(25) << " TOTAL WORK : " << total_work  << std::setw(25) << '\n';
-    if (total_work < lowest_work) {
-      lowest_work = total_work;
-      best_pu = history_element.pu->get_id();
-      best_hist = &history_element;
-      j = i;
-    }
-    i++;
-  }
-  best_hist->accumulated_work +=
-      weight * arch_.max_pu_strength / best_hist->pu->get_power();
-
-  //std::cout << "I am sending a task with weight : " << weight << " to : " << best_pu << "\n\n";
-  //trueHistory[j].accumulated_work += weight;
-  //return best_pu;
+//   //std::cout << "I am sending a task with weight : " << weight << " to : " << best_pu << "\n\n";
+//   trueHistory[j].accumulated_work += weight;
+//   return best_pu;
+// #endif
 
   static uint64_t last_cpu = 20;
   if (last_cpu == 28) {

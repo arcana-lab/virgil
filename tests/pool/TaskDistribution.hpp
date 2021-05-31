@@ -15,7 +15,7 @@ std::vector<std::uint32_t> getUniformDistribution(std::uint32_t numTasks, std::u
 std::vector<std::uint32_t> getBimodalDistribution(std::uint32_t numTasks, std::uint32_t low, std::uint32_t high) {
     std::vector<std::uint32_t> distribution; 
     for (int i = 0; i < numTasks; i++) {
-        distribution.push_back((rand() % 2)? low : high);
+        distribution.push_back((i % 2)? low : high);
     }
     return distribution;
 }

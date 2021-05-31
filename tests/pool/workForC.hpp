@@ -16,9 +16,11 @@ void myF(void* args) {
   uint64_t task_id = ((struct myFargs*)args)->task_id;
   int iters = ((struct myFargs*)args)->iters;
   double v = static_cast<double>(iters);
+  unsigned int seed = 0;
   for (auto i = 0; i < iters; i++) {
-    for (auto i = 0; i < iters; i++) {
-      v = sqrt(v);
+    for (auto j = 0; j < iters; j++) {
+      int x = ((i * j) % rand_r(&seed)) * 7;
+      v = sqrt(v + x);
     }
   }
 
