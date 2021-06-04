@@ -203,8 +203,7 @@ void MARC::ThreadPoolForC::submitAndDetach (
 
 void MARC::ThreadPoolForC::worker (std::atomic_bool *availability, std::uint32_t thread){
 
-
-  auto cpu = sched_getcpu();
+  auto cpu = thread;
   cpu_set_t cpuset;
   CPU_ZERO(&cpuset);
   CPU_SET(cpu, &cpuset);
