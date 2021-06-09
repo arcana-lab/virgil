@@ -193,7 +193,6 @@ void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p
     (*availability) = false;
     return ;
   }
-  assert(!p->m_done);
   p->workerFunction(availability, thread);
   (*availability) = false;
 
