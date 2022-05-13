@@ -158,7 +158,10 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
-  static std::uint32_t nextLocality = 0;
+
+  // locality 0 is used by main thread
+  // the actual index is adjusted later
+  static std::uint32_t nextLocality = 1;
   this->submitAndDetach(f, args, nextLocality);
   nextLocality++;
 }
@@ -182,7 +185,9 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
     pthread_spin_lock(&this->cWorkQueuesLock);
   }
 
-  auto queueID = li % this->cWorkQueues.size();
+  auto adjustedLi = li - 1;
+  
+  auto queueID = adjustedLi % this->cWorkQueues.size();
   this->cWorkQueues.at(queueID)->push(cTask);
 
   if (this->extendible){

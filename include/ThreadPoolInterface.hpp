@@ -30,6 +30,7 @@
 #include <utility>
 #include <vector>
 #include <assert.h>
+#include <hwloc.h>
 
 namespace MARC {
 
@@ -98,6 +99,14 @@ namespace MARC {
       mutable std::mutex extendingMutex;
 
       /*
+       * state and topology for hwloc library
+       * Core 0 is dedicated to main thread
+       * nextCore value starts from 1
+       */
+      hwloc_topology_t topo;
+      uint32_t nextCore;
+
+      /*
        * Expand the pool if possible and necessary.
        */
       void expandPool (void);
@@ -147,7 +156,8 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   :
   m_done{false},
   m_threads{},
-  codeToExecuteByTheDeconstructor{}
+  codeToExecuteByTheDeconstructor{},
+  nextCore(1)
   {
 
   /*
@@ -158,6 +168,12 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   if (codeToExecuteAtDeconstructor != nullptr){
     this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
   }
+
+  /*
+   * Initialize hwloc variables
+   */
+  hwloc_topology_init(&this->topo);
+  hwloc_topology_load(this->topo);
 
   return ;
 }
@@ -183,6 +199,20 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
      * Create a new thread.
      */
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
+    auto &thread = this->m_threads.back();
+    
+    // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+    // only CPU i as set.
+    hwloc_obj_t coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, nextCore);
+
+    int rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
+            coreObj->children[0]->cpuset, 0); 
+
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
+
+    nextCore++;
   }
 
   return ;
@@ -273,5 +303,6 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
     delete flag;
   }
 
+  hwloc_topology_destroy(this->topo);
   return ;
 }
