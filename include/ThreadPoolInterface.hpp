@@ -175,6 +175,13 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   hwloc_topology_init(&this->topo);
   hwloc_topology_load(this->topo);
 
+  /*
+   * Bind main thread to core 0 here
+   *
+   */
+  hwloc_obj_t coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, 0);
+  hwloc_set_cpubind(topo, coreObj->children[0]->cpuset, 0);
+
   return ;
 }
 
