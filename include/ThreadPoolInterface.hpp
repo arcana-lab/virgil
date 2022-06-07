@@ -24,6 +24,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <thread>
 #include <type_traits>
@@ -71,6 +72,8 @@ namespace MARC {
        */
       virtual std::uint64_t numberOfTasksWaitingToBeProcessed (void) const = 0;
 
+      uint32_t getCurrentThreadQId();
+
       /*
        * Destructor.
        */
@@ -105,6 +108,7 @@ namespace MARC {
        */
       hwloc_topology_t topo;
       uint32_t nextCore;
+      std::map<uint32_t, uint32_t> coreToQIdMap;
 
       /*
        * Expand the pool if possible and necessary.
@@ -182,6 +186,11 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   hwloc_obj_t coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, 0);
   hwloc_set_cpubind(topo, coreObj->children[0]->cpuset, 0);
 
+  int coreId = hwloc_bitmap_first(coreObj->children[0]->cpuset); 
+
+  assert(coreId == 0 && "main tread is not bound to core 0"); 
+  coreToQIdMap[coreId] = 0;
+
   return ;
 }
 
@@ -214,6 +223,10 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
 
     int rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
             coreObj->children[0]->cpuset, 0); 
+    
+    int coreId = hwloc_bitmap_first(coreObj->children[0]->cpuset);
+
+    coreToQIdMap[coreId] = nextCore;
 
     if (rc != 0) {
       std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
@@ -283,6 +296,20 @@ void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
   }
 
   return ;
+}
+
+uint32_t MARC::ThreadPoolInterface::getCurrentThreadQId(){
+
+  hwloc_bitmap_t set;
+  int err = hwloc_get_cpubind(this->topo, set, 0);
+  if(err){
+     assert(false && "hwloc cpubind function failed\n"); 
+  }
+  
+  int coreId = hwloc_bitmap_first(set);
+  
+  return coreToQIdMap[coreId];
+
 }
 
 MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
