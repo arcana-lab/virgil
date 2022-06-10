@@ -300,7 +300,7 @@ void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
 
 uint32_t MARC::ThreadPoolInterface::getCurrentThreadQId(){
 
-  hwloc_bitmap_t set;
+  hwloc_bitmap_t set = hwloc_bitmap_alloc();
   int err = hwloc_get_cpubind(this->topo, set, 0);
   if(err){
      assert(false && "hwloc cpubind function failed\n"); 
