@@ -204,19 +204,6 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
 
 void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availability, std::uint32_t thread){
 
-  /*
-   * Fetch the current core the thread is running on
-   */
-  auto cpu = sched_getcpu();
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(cpu, &cpuset);
-
-  /*
-   * Pin the thread to the current core is running on
-   */
-  pthread_t current_thread = pthread_self();
-  pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 
   /*
    * Fetch the queue of the thread
