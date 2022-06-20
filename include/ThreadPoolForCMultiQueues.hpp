@@ -158,7 +158,10 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
-  static std::uint32_t nextLocality = 0;
+
+  // locality 0 is used by main thread
+  // the actual index is adjusted later
+  static std::uint32_t nextLocality = 1;
   this->submitAndDetach(f, args, nextLocality);
   nextLocality++;
 }
@@ -182,7 +185,9 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
     pthread_spin_lock(&this->cWorkQueuesLock);
   }
 
-  auto queueID = li % this->cWorkQueues.size();
+  auto adjustedLi = li - 1;
+  
+  auto queueID = adjustedLi % this->cWorkQueues.size();
   this->cWorkQueues.at(queueID)->push(cTask);
 
   if (this->extendible){
@@ -199,19 +204,6 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
 
 void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availability, std::uint32_t thread){
 
-  /*
-   * Fetch the current core the thread is running on
-   */
-  auto cpu = sched_getcpu();
-  cpu_set_t cpuset;
-  CPU_ZERO(&cpuset);
-  CPU_SET(cpu, &cpuset);
-
-  /*
-   * Pin the thread to the current core is running on
-   */
-  pthread_t current_thread = pthread_self();
-  pthread_setaffinity_np(current_thread, sizeof(cpu_set_t), &cpuset);
 
   /*
    * Fetch the queue of the thread

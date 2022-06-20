@@ -23,13 +23,16 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
+#include <map>
 #include <memory>
 #include <thread>
 #include <type_traits>
 #include <utility>
 #include <vector>
 #include <assert.h>
+#include <hwloc.h>
 
 namespace MARC {
 
@@ -70,6 +73,8 @@ namespace MARC {
        */
       virtual std::uint64_t numberOfTasksWaitingToBeProcessed (void) const = 0;
 
+      uint32_t getCurrentThreadQId();
+
       /*
        * Destructor.
        */
@@ -96,6 +101,16 @@ namespace MARC {
       ThreadSafeMutexQueue<std::function<void ()>> codeToExecuteByTheDeconstructor;
       bool extendible;
       mutable std::mutex extendingMutex;
+
+      /*
+       * state and topology for hwloc library
+       * Core 0 is dedicated to main thread
+       * nextCore value starts from 1
+       */
+      hwloc_topology_t topo;
+      uint32_t nextCore;
+      std::map<uint32_t, uint32_t> coreToQIdMap;
+      bool enableSMT;
 
       /*
        * Expand the pool if possible and necessary.
@@ -147,7 +162,9 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   :
   m_done{false},
   m_threads{},
-  codeToExecuteByTheDeconstructor{}
+  codeToExecuteByTheDeconstructor{},
+  nextCore(1),
+  enableSMT(false)
   {
 
   /*
@@ -157,6 +174,35 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
 
   if (codeToExecuteAtDeconstructor != nullptr){
     this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
+  }
+
+  /*
+   * Initialize hwloc variables
+   */
+  hwloc_topology_init(&this->topo);
+  hwloc_topology_load(this->topo);
+
+  /*
+   * Bind main thread to core 0 here
+   *
+   */
+  hwloc_obj_t coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, 0);
+  hwloc_set_cpubind(topo, coreObj->children[0]->cpuset, 0);
+
+  int coreId = hwloc_bitmap_first(coreObj->children[0]->cpuset); 
+
+  assert(coreId == 0 && "main tread is not bound to core 0"); 
+  coreToQIdMap[coreId] = 0;
+
+  /*
+   * Check if VIRGIL_ENABLE_SMT environment variable is set
+   * 
+   */
+  if(const char* env_p = std::getenv("VIRGIL_ENABLE_SMT")){
+      int env_val = atoi(env_p);
+      if(env_val){
+          enableSMT = true;
+      }
   }
 
   return ;
@@ -183,6 +229,31 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
      * Create a new thread.
      */
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
+    auto &thread = this->m_threads.back();
+    
+    int rc = 0;
+    hwloc_obj_t coreObj;
+    // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+    // only CPU i as set.
+    if(enableSMT){
+      coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_PU, nextCore);
+      rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
+              coreObj->cpuset, 0); 
+    }else{
+      coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, nextCore);
+      rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
+              coreObj->children[0]->cpuset, 0); 
+    }
+    
+    int coreId = hwloc_bitmap_first(coreObj->children[0]->cpuset);
+
+    coreToQIdMap[coreId] = nextCore;
+
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
+
+    nextCore++;
   }
 
   return ;
@@ -248,6 +319,20 @@ void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
   return ;
 }
 
+uint32_t MARC::ThreadPoolInterface::getCurrentThreadQId(){
+
+  hwloc_bitmap_t set = hwloc_bitmap_alloc();
+  int err = hwloc_get_cpubind(this->topo, set, HWLOC_CPUBIND_THREAD);
+  if(err){
+     assert(false && "hwloc cpubind function failed\n"); 
+  }
+  
+  int coreId = hwloc_bitmap_first(set);
+  
+  return coreToQIdMap[coreId];
+
+}
+
 MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
   assert(this->m_done);
 
@@ -273,5 +358,6 @@ MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
     delete flag;
   }
 
+  hwloc_topology_destroy(this->topo);
   return ;
 }
