@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <functional>
 #include <map>
 #include <memory>
@@ -109,6 +110,7 @@ namespace MARC {
       hwloc_topology_t topo;
       uint32_t nextCore;
       std::map<uint32_t, uint32_t> coreToQIdMap;
+      bool enableSMT;
 
       /*
        * Expand the pool if possible and necessary.
@@ -161,7 +163,8 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   m_done{false},
   m_threads{},
   codeToExecuteByTheDeconstructor{},
-  nextCore(1)
+  nextCore(1),
+  enableSMT(false)
   {
 
   /*
@@ -191,6 +194,17 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   assert(coreId == 0 && "main tread is not bound to core 0"); 
   coreToQIdMap[coreId] = 0;
 
+  /*
+   * Check if VIRGIL_ENABLE_SMT environment variable is set
+   * 
+   */
+  if(const char* env_p = std::getenv("VIRGIL_ENABLE_SMT")){
+      int env_val = atoi(env_p);
+      if(env_val){
+          enableSMT = true;
+      }
+  }
+
   return ;
 }
 
@@ -217,12 +231,19 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
     auto &thread = this->m_threads.back();
     
+    int rc = 0;
+    hwloc_obj_t coreObj;
     // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
     // only CPU i as set.
-    hwloc_obj_t coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, nextCore);
-
-    int rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
-            coreObj->children[0]->cpuset, 0); 
+    if(enableSMT){
+      coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_PU, nextCore);
+      rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
+              coreObj->cpuset, 0); 
+    }else{
+      coreObj = hwloc_get_obj_by_type(this->topo, HWLOC_OBJ_CORE, nextCore);
+      rc = hwloc_set_thread_cpubind(this->topo, thread.native_handle(),
+              coreObj->children[0]->cpuset, 0); 
+    }
     
     int coreId = hwloc_bitmap_first(coreObj->children[0]->cpuset);
 
