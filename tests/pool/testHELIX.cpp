@@ -219,15 +219,15 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool{true, std::thread::hardware_concurrency()};
+  arcana::virgil::ThreadPool pool{true, std::thread::hardware_concurrency()};
 
   /*
    * Submit jobs.
    */
   volatile uint64_t loopIsOverFlag = 0;
   cpu_set_t cores;
-  std::vector<MARC::TaskFuture<double>> results;
-  std::vector<MARC::TaskFuture<void>> voidResults;
+  std::vector<arcana::virgil::TaskFuture<double>> results;
+  std::vector<arcana::virgil::TaskFuture<void>> voidResults;
   for (auto i=0; i < threads; i++){
 
     /*

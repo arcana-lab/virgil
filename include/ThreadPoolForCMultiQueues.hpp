@@ -35,7 +35,7 @@
 
 typedef int LocalityIsland;
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread pool.
@@ -112,7 +112,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues(void) 
+arcana::virgil::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues(void) 
   : ThreadPoolForCMultiQueues{false} 
   {
 
@@ -125,7 +125,7 @@ MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues(void)
   return ;
 }
 
-MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
+arcana::virgil::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
@@ -154,7 +154,7 @@ MARC::ThreadPoolForCMultiQueues::ThreadPoolForCMultiQueues (
   return ;
 }
 
-void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
+void arcana::virgil::ThreadPoolForCMultiQueues::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
@@ -163,7 +163,7 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
   nextLocality++;
 }
 
-void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
+void arcana::virgil::ThreadPoolForCMultiQueues::submitAndDetach (
   void (*f) (void *args),
   void *args,
   LocalityIsland li
@@ -197,7 +197,7 @@ void MARC::ThreadPoolForCMultiQueues::submitAndDetach (
   return ;
 }
 
-void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availability, std::uint32_t thread){
+void arcana::virgil::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availability, std::uint32_t thread){
 
   /*
    * Fetch the current core the thread is running on
@@ -242,7 +242,7 @@ void MARC::ThreadPoolForCMultiQueues::workerFunction (std::atomic_bool *availabi
   return ;
 }
 
-std::uint64_t MARC::ThreadPoolForCMultiQueues::numberOfTasksWaitingToBeProcessed (void) const {
+std::uint64_t arcana::virgil::ThreadPoolForCMultiQueues::numberOfTasksWaitingToBeProcessed (void) const {
   std::uint64_t s = 0;
   pthread_spin_lock(&this->cWorkQueuesLock);
   for (auto queue : this->cWorkQueues) {
@@ -253,7 +253,7 @@ std::uint64_t MARC::ThreadPoolForCMultiQueues::numberOfTasksWaitingToBeProcessed
   return s;
 }
 
-MARC::ThreadPoolForCMultiQueues::~ThreadPoolForCMultiQueues (void){
+arcana::virgil::ThreadPoolForCMultiQueues::~ThreadPoolForCMultiQueues (void){
 
   /*
    * Signal threads to quite.

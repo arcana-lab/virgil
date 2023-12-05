@@ -24,11 +24,11 @@
 
 #include "ThreadSafeQueue.hpp"
 
-namespace MARC {
+namespace arcana::virgil {
 
   template <typename T>
   class ThreadSafeMutexQueueSleep final : public ThreadSafeQueue<T> {
-    using Base = MARC::ThreadSafeQueue<T>;
+    using Base = arcana::virgil::ThreadSafeQueue<T>;
 
     public:
 
@@ -122,13 +122,13 @@ namespace MARC {
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueueSleep<T>::ThreadSafeMutexQueueSleep(){
+arcana::virgil::ThreadSafeMutexQueueSleep<T>::ThreadSafeMutexQueueSleep(){
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueueSleep<T>::tryPop (T& out){
+bool arcana::virgil::ThreadSafeMutexQueueSleep<T>::tryPop (T& out){
   std::lock_guard<std::mutex> lock{m_mutex};
   if(Base::m_queue.empty() || !Base::m_valid){
     return false;
@@ -140,7 +140,7 @@ bool MARC::ThreadSafeMutexQueueSleep<T>::tryPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (T& out){
+bool arcana::virgil::ThreadSafeMutexQueueSleep<T>::waitPop (T& out){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -177,7 +177,7 @@ bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (void){
+bool arcana::virgil::ThreadSafeMutexQueueSleep<T>::waitPop (void){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -222,7 +222,7 @@ bool MARC::ThreadSafeMutexQueueSleep<T>::waitPop (void){
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::push (T value){
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::push (T value){
   std::lock_guard<std::mutex> lock{m_mutex};
   internal_pushAndNotify(value);
 
@@ -230,7 +230,7 @@ void MARC::ThreadSafeMutexQueueSleep<T>::push (T value){
 }
  
 template <typename T>
-bool MARC::ThreadSafeMutexQueueSleep<T>::waitPush (T value, int64_t maxSize){
+bool arcana::virgil::ThreadSafeMutexQueueSleep<T>::waitPush (T value, int64_t maxSize){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   full_condition.wait(lock, 
@@ -254,21 +254,21 @@ bool MARC::ThreadSafeMutexQueueSleep<T>::waitPush (T value, int64_t maxSize){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueueSleep<T>::empty (void) const {
+bool arcana::virgil::ThreadSafeMutexQueueSleep<T>::empty (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.empty();
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeMutexQueueSleep<T>::size (void) const {
+int64_t arcana::virgil::ThreadSafeMutexQueueSleep<T>::size (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.size();
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::clear (void) {
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::clear (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   while(!Base::m_queue.empty()) {
@@ -284,7 +284,7 @@ void MARC::ThreadSafeMutexQueueSleep<T>::clear (void) {
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::invalidate (void) {
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::invalidate (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   /*
@@ -308,14 +308,14 @@ void MARC::ThreadSafeMutexQueueSleep<T>::invalidate (void) {
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueueSleep<T>::~ThreadSafeMutexQueueSleep(void){
+arcana::virgil::ThreadSafeMutexQueueSleep<T>::~ThreadSafeMutexQueueSleep(void){
   this->invalidate();
 
   return ;
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::internal_pushAndNotify (T& value){
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::internal_pushAndNotify (T& value){
 
   /*
    * Push the value to the queue.
@@ -326,7 +326,7 @@ void MARC::ThreadSafeMutexQueueSleep<T>::internal_pushAndNotify (T& value){
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::internal_popAndNotify (T& out){
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::internal_popAndNotify (T& out){
 
   /*
    * Pop the top element from the queue.
@@ -342,7 +342,7 @@ void MARC::ThreadSafeMutexQueueSleep<T>::internal_popAndNotify (T& out){
 }
       
 template <typename T>
-void MARC::ThreadSafeMutexQueueSleep<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
+void arcana::virgil::ThreadSafeMutexQueueSleep<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
   auto time = std::chrono::microseconds(1);
   auto iterations = 0;
   do {

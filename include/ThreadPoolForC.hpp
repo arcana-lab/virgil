@@ -34,7 +34,7 @@
 #include <utility>
 #include <vector>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread pool.
@@ -95,7 +95,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC(void)
+arcana::virgil::ThreadPoolForC::ThreadPoolForC(void)
   : ThreadPoolForC{false} 
   {
 
@@ -108,7 +108,7 @@ MARC::ThreadPoolForC::ThreadPoolForC(void)
   return ;
 }
 
-MARC::ThreadPoolForC::ThreadPoolForC (
+arcana::virgil::ThreadPoolForC::ThreadPoolForC (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor
@@ -118,7 +118,7 @@ MARC::ThreadPoolForC::ThreadPoolForC (
   return ;
 }
 
-MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
+arcana::virgil::ThreadCTask * arcana::virgil::ThreadPoolForC::getTask (void){
 
   /*
    * Fetch the memory.
@@ -141,7 +141,7 @@ MARC::ThreadCTask * MARC::ThreadPoolForC::getTask (void){
   return cTask;
 }
 
-MARC::ThreadPoolForC::~ThreadPoolForC (void){
+arcana::virgil::ThreadPoolForC::~ThreadPoolForC (void){
 
   /*
    * Join threads.

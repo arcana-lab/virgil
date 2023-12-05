@@ -20,7 +20,7 @@
 #include <queue>
 #include <utility>
 
-namespace MARC {
+namespace arcana::virgil {
 
   template <typename T>
   class ThreadSafeQueue{
@@ -114,12 +114,12 @@ namespace MARC {
 }
 
 template <typename T>
-bool MARC::ThreadSafeQueue<T>::isValid (void) const {
+bool arcana::virgil::ThreadSafeQueue<T>::isValid (void) const {
   return m_valid;
 }
 
 template <typename T>
-void MARC::ThreadSafeQueue<T>::invalidate (void) {
+void arcana::virgil::ThreadSafeQueue<T>::invalidate (void) {
 
   /*
    * Invalidate the queue.
@@ -130,7 +130,7 @@ void MARC::ThreadSafeQueue<T>::invalidate (void) {
 }
 
 template <typename T>
-void MARC::ThreadSafeQueue<T>::internal_push (T& value){
+void arcana::virgil::ThreadSafeQueue<T>::internal_push (T& value){
 
   /*
    * Push the value to the queue.
@@ -141,7 +141,7 @@ void MARC::ThreadSafeQueue<T>::internal_push (T& value){
 }
 
 template <typename T>
-void MARC::ThreadSafeQueue<T>::internal_pop (T& out){
+void arcana::virgil::ThreadSafeQueue<T>::internal_pop (T& out){
 
   /*
    * Fetch the element on top of the queue.

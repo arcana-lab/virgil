@@ -31,7 +31,7 @@
 #include <vector>
 #include <assert.h>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread pool.
@@ -127,7 +127,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadPoolInterface::ThreadPoolInterface(void)
+arcana::virgil::ThreadPoolInterface::ThreadPoolInterface(void)
   : ThreadPoolInterface{false} 
   {
 
@@ -140,7 +140,7 @@ MARC::ThreadPoolInterface::ThreadPoolInterface(void)
   return ;
 }
 
-MARC::ThreadPoolInterface::ThreadPoolInterface (
+arcana::virgil::ThreadPoolInterface::ThreadPoolInterface (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
@@ -162,13 +162,13 @@ MARC::ThreadPoolInterface::ThreadPoolInterface (
   return ;
 }
 
-void MARC::ThreadPoolInterface::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
+void arcana::virgil::ThreadPoolInterface::appendCodeToDeconstructor (std::function<void ()> codeToExecuteAtDeconstructor){
   this->codeToExecuteByTheDeconstructor.push(codeToExecuteAtDeconstructor);
 
   return ;
 }
 
-void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
+void arcana::virgil::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
   assert(!this->m_done);
 
   for (auto i = 0; i < newThreadsToGenerate; i++){
@@ -188,7 +188,7 @@ void MARC::ThreadPoolInterface::newThreads (std::uint32_t newThreadsToGenerate){
   return ;
 }
 
-void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
+void arcana::virgil::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p, std::atomic_bool *availability, std::uint32_t thread) {
   if (p->m_done){
     (*availability) = false;
     return ;
@@ -199,7 +199,7 @@ void MARC::ThreadPoolInterface::workerFunctionTrampoline (ThreadPoolInterface *p
   return ;
 }
 
-std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
+std::uint32_t arcana::virgil::ThreadPoolInterface::numberOfIdleThreads (void) const {
   std::uint32_t n = 0;
 
   for (auto i=0; i < this->m_threads.size(); i++){
@@ -212,7 +212,7 @@ std::uint32_t MARC::ThreadPoolInterface::numberOfIdleThreads (void) const {
   return n;
 }
 
-void MARC::ThreadPoolInterface::expandPool (void) {
+void arcana::virgil::ThreadPoolInterface::expandPool (void) {
   assert(!this->m_done);
 
   /*
@@ -240,7 +240,7 @@ void MARC::ThreadPoolInterface::expandPool (void) {
   return ;
 }
       
-void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
+void arcana::virgil::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
   for (auto i=0; i < this->threadAvailability.size(); i++){
     while (*(this->threadAvailability[i]));
   }
@@ -248,7 +248,7 @@ void MARC::ThreadPoolInterface::waitAllThreadsToBeUnavailable (void) {
   return ;
 }
 
-MARC::ThreadPoolInterface::~ThreadPoolInterface (void){
+arcana::virgil::ThreadPoolInterface::~ThreadPoolInterface (void){
   assert(this->m_done);
 
   /*

@@ -13,7 +13,7 @@
  */
 #pragma once
 
-namespace MARC{
+namespace arcana::virgil{
 
   template <class ValueType>
   class SequenceOfValues {
@@ -56,7 +56,7 @@ namespace MARC{
 }
 
 template <class ValueType>
-MARC::SequenceOfValues<ValueType>::SequenceOfValues (uint32_t numberOfElements){
+arcana::virgil::SequenceOfValues<ValueType>::SequenceOfValues (uint32_t numberOfElements){
   this->numberOfValues = numberOfElements;
   this->values = new ValueType[this->numberOfValues];
 
@@ -64,7 +64,7 @@ MARC::SequenceOfValues<ValueType>::SequenceOfValues (uint32_t numberOfElements){
 }
 
 template <class ValueType>
-MARC::SequenceOfValues<ValueType>& MARC::SequenceOfValues<ValueType>::operator= (const MARC::SequenceOfValues<ValueType>& other){
+arcana::virgil::SequenceOfValues<ValueType>& arcana::virgil::SequenceOfValues<ValueType>::operator= (const arcana::virgil::SequenceOfValues<ValueType>& other){
   if (this != &other){
     if (this->numberOfValues != other.numberOfValues){
       abort();
@@ -76,8 +76,8 @@ MARC::SequenceOfValues<ValueType>& MARC::SequenceOfValues<ValueType>::operator= 
 }
 
 template <class ValueType>
-MARC::SequenceOfValues<ValueType>::SequenceOfValues (const MARC::SequenceOfValues<ValueType> & other)
-  : MARC::SequenceOfValues<ValueType>::SequenceOfValues(other.numberOfValues)
+arcana::virgil::SequenceOfValues<ValueType>::SequenceOfValues (const arcana::virgil::SequenceOfValues<ValueType> & other)
+  : arcana::virgil::SequenceOfValues<ValueType>::SequenceOfValues(other.numberOfValues)
   {
   std::copy(other.values, other.values + other.numberOfValues, this->values);
 
@@ -85,7 +85,7 @@ MARC::SequenceOfValues<ValueType>::SequenceOfValues (const MARC::SequenceOfValue
 }
 
 template <class ValueType>
-MARC::SequenceOfValues<ValueType>::~SequenceOfValues (void){
+arcana::virgil::SequenceOfValues<ValueType>::~SequenceOfValues (void){
   delete[] this->values;
 
   return ;

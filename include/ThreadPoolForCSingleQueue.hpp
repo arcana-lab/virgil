@@ -32,7 +32,7 @@
 #include <utility>
 #include <vector>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread pool.
@@ -99,7 +99,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue(void) 
+arcana::virgil::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue(void) 
   : ThreadPoolForCSingleQueue{false} 
   {
 
@@ -112,7 +112,7 @@ MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue(void)
   return ;
 }
 
-MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue (
+arcana::virgil::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
@@ -134,7 +134,7 @@ MARC::ThreadPoolForCSingleQueue::ThreadPoolForCSingleQueue (
   return ;
 }
 
-void MARC::ThreadPoolForCSingleQueue::submitAndDetach (
+void arcana::virgil::ThreadPoolForCSingleQueue::submitAndDetach (
   void (*f) (void *args),
   void *args
   ){
@@ -158,7 +158,7 @@ void MARC::ThreadPoolForCSingleQueue::submitAndDetach (
   return ;
 }
 
-void MARC::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
+void arcana::virgil::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
   while(!m_done) {
     (*availability) = true;
     ThreadCTask *pTask = nullptr;
@@ -177,13 +177,13 @@ void MARC::ThreadPoolForCSingleQueue::workerFunction (std::atomic_bool *availabi
   return ;
 }
 
-std::uint64_t MARC::ThreadPoolForCSingleQueue::numberOfTasksWaitingToBeProcessed (void) const {
+std::uint64_t arcana::virgil::ThreadPoolForCSingleQueue::numberOfTasksWaitingToBeProcessed (void) const {
   auto s = this->cWorkQueue.size();
 
   return s;
 }
 
-MARC::ThreadPoolForCSingleQueue::~ThreadPoolForCSingleQueue (void){
+arcana::virgil::ThreadPoolForCSingleQueue::~ThreadPoolForCSingleQueue (void){
 
   /*
    * Signal threads to quite.

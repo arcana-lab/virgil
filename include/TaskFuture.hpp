@@ -15,7 +15,7 @@
 
 #include <future>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * A wrapper around a std::future that adds the behavior of futures returned from std::async.

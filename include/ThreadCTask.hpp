@@ -19,7 +19,7 @@
 
 #include <ThreadTask.hpp>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * An implementation of the thread task interface for C functions
@@ -88,7 +88,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadCTask::ThreadCTask (uint64_t ID)
+arcana::virgil::ThreadCTask::ThreadCTask (uint64_t ID)
   : useAffinity{false}
   , ID{ID}
   , available{false}
@@ -97,7 +97,7 @@ MARC::ThreadCTask::ThreadCTask (uint64_t ID)
   return ;
 }
 
-MARC::ThreadCTask::ThreadCTask (
+arcana::virgil::ThreadCTask::ThreadCTask (
   uint64_t ID,
   void (*f) (void *args),
   void *args
@@ -114,7 +114,7 @@ MARC::ThreadCTask::ThreadCTask (
   return ;
 }
 
-MARC::ThreadCTask::ThreadCTask (
+arcana::virgil::ThreadCTask::ThreadCTask (
   uint64_t ID,
   cpu_set_t coresToUse, 
   void (*f) (void *args),
@@ -132,7 +132,7 @@ MARC::ThreadCTask::ThreadCTask (
   return ;
 }
 
-void MARC::ThreadCTask::execute (void){
+void arcana::virgil::ThreadCTask::execute (void){
 
   /*
    * Check if we have been asked to set the affinity of the thread that will run the task.
@@ -158,7 +158,7 @@ void MARC::ThreadCTask::execute (void){
   return ;
 }
 
-bool MARC::ThreadCTask::getAvailability() {
+bool arcana::virgil::ThreadCTask::getAvailability() {
   auto ret = false;
 
   if(available) {
@@ -173,17 +173,17 @@ bool MARC::ThreadCTask::getAvailability() {
   return ret;
 }
 
-void MARC::ThreadCTask::setAvailable() {
+void arcana::virgil::ThreadCTask::setAvailable() {
   pthread_spin_lock(&this->availabilityLock);
   available = true;
   pthread_spin_unlock(&this->availabilityLock);
 }
 
-std::uint64_t MARC::ThreadCTask::getID (void) const {
+std::uint64_t arcana::virgil::ThreadCTask::getID (void) const {
   return this->ID;
 }
       
-void MARC::ThreadCTask::setFunction (void (*f) (void *args), void *args){
+void arcana::virgil::ThreadCTask::setFunction (void (*f) (void *args), void *args){
   this->m_func = f;
   this->args = args;
 }

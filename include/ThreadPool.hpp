@@ -30,7 +30,7 @@
 #include <utility>
 #include <vector>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread pool.
@@ -112,7 +112,7 @@ namespace MARC {
 
 }
 
-MARC::ThreadPool::ThreadPool(void) 
+arcana::virgil::ThreadPool::ThreadPool(void) 
   : ThreadPool{false} 
   {
 
@@ -125,7 +125,7 @@ MARC::ThreadPool::ThreadPool(void)
   return ;
 }
 
-MARC::ThreadPool::ThreadPool (
+arcana::virgil::ThreadPool::ThreadPool (
   const bool extendible,
   const std::uint32_t numThreads,
   std::function <void (void)> codeToExecuteAtDeconstructor)
@@ -147,7 +147,7 @@ MARC::ThreadPool::ThreadPool (
 }
 
 template <typename Func, typename... Args>
-auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
+auto arcana::virgil::ThreadPool::submit (Func&& func, Args&&... args){
 
   /*
    * Making the task.
@@ -177,7 +177,7 @@ auto MARC::ThreadPool::submit (Func&& func, Args&&... args){
 }
 
 template <typename Func, typename... Args>
-auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args){
+auto arcana::virgil::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&&... args){
 
   /*
    * Making the task.
@@ -207,7 +207,7 @@ auto MARC::ThreadPool::submitToCores (const cpu_set_t& cores, Func&& func, Args&
 }
 
 template <typename Func, typename... Args>
-auto MARC::ThreadPool::submitToCore (uint32_t core, Func&& func, Args&&... args){
+auto arcana::virgil::ThreadPool::submitToCore (uint32_t core, Func&& func, Args&&... args){
 
   /*
    * Making the task.
@@ -244,7 +244,7 @@ auto MARC::ThreadPool::submitToCore (uint32_t core, Func&& func, Args&&... args)
 }
 
 template <typename Func, typename... Args>
-void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
+void arcana::virgil::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
 
   /*
    * Making the task.
@@ -268,7 +268,7 @@ void MARC::ThreadPool::submitAndDetach (Func&& func, Args&&... args){
   return ;
 }
 
-void MARC::ThreadPool::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
+void arcana::virgil::ThreadPool::workerFunction (std::atomic_bool *availability, std::uint32_t thread) {
   while(!m_done) {
     (*availability) = true;
     std::unique_ptr<IThreadTask> pTask{nullptr};
@@ -281,13 +281,13 @@ void MARC::ThreadPool::workerFunction (std::atomic_bool *availability, std::uint
   return ;
 }
 
-std::uint64_t MARC::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
+std::uint64_t arcana::virgil::ThreadPool::numberOfTasksWaitingToBeProcessed (void) const {
   auto s = this->m_workQueue.size();
 
   return s;
 }
 
-MARC::ThreadPool::~ThreadPool (void){
+arcana::virgil::ThreadPool::~ThreadPool (void){
 
   /*
    * Signal threads to quite.

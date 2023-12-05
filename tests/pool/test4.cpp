@@ -21,12 +21,12 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool{false, threads};
+  arcana::virgil::ThreadPool pool{false, threads};
 
   /*
    * Submit jobs.
    */
-  std::vector<MARC::TaskFuture<double>> results;
+  std::vector<arcana::virgil::TaskFuture<double>> results;
   cpu_set_t cores;
   CPU_ZERO(&cores);
   CPU_SET(2, &cores);

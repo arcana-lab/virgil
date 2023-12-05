@@ -26,11 +26,11 @@
 
 using namespace moodycamel ;
 
-namespace MARC {
+namespace arcana::virgil {
 
   template <typename T>
   class ThreadSafeLockFreeQueue final : public ThreadSafeQueue<T> {
-    using Base = MARC::ThreadSafeQueue<T>;
+    using Base = arcana::virgil::ThreadSafeQueue<T>;
 
     public:
 
@@ -102,13 +102,13 @@ namespace MARC {
 }
 
 template <typename T>
-MARC::ThreadSafeLockFreeQueue<T>::ThreadSafeLockFreeQueue(){
+arcana::virgil::ThreadSafeLockFreeQueue<T>::ThreadSafeLockFreeQueue(){
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeLockFreeQueue<T>::tryPop (T& out){
+bool arcana::virgil::ThreadSafeLockFreeQueue<T>::tryPop (T& out){
 
   /*
    * Check if the queue is not valid anymore.
@@ -126,7 +126,7 @@ bool MARC::ThreadSafeLockFreeQueue<T>::tryPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeLockFreeQueue<T>::waitPop (T& out){
+bool arcana::virgil::ThreadSafeLockFreeQueue<T>::waitPop (T& out){
 
   /*
    * Check if the queue is not valid anymore.
@@ -151,20 +151,20 @@ bool MARC::ThreadSafeLockFreeQueue<T>::waitPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeLockFreeQueue<T>::waitPop (void){
+bool arcana::virgil::ThreadSafeLockFreeQueue<T>::waitPop (void){
   T out;
   return waitPop(out);
 }
 
 template <typename T>
-void MARC::ThreadSafeLockFreeQueue<T>::push (T value){
+void arcana::virgil::ThreadSafeLockFreeQueue<T>::push (T value){
   queue.enqueue(value);
 
   return ;
 }
  
 template <typename T>
-bool MARC::ThreadSafeLockFreeQueue<T>::waitPush (T value, int64_t maxSize){
+bool arcana::virgil::ThreadSafeLockFreeQueue<T>::waitPush (T value, int64_t maxSize){
 
   /*
    * Wait until the queue has less elements than maxSize
@@ -184,21 +184,21 @@ bool MARC::ThreadSafeLockFreeQueue<T>::waitPush (T value, int64_t maxSize){
 }
 
 template <typename T>
-bool MARC::ThreadSafeLockFreeQueue<T>::empty (void) const {
+bool arcana::virgil::ThreadSafeLockFreeQueue<T>::empty (void) const {
   auto empty = (queue.size_approx() == 0);
 
   return empty;
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeLockFreeQueue<T>::size (void) const {
+int64_t arcana::virgil::ThreadSafeLockFreeQueue<T>::size (void) const {
   auto s = queue.size_approx();
  
   return s;
 }
 
 template <typename T>
-void MARC::ThreadSafeLockFreeQueue<T>::clear (void) {
+void arcana::virgil::ThreadSafeLockFreeQueue<T>::clear (void) {
   while(!empty()){
     waitPop();
   }
@@ -207,7 +207,7 @@ void MARC::ThreadSafeLockFreeQueue<T>::clear (void) {
 }
 
 template <typename T>
-MARC::ThreadSafeLockFreeQueue<T>::~ThreadSafeLockFreeQueue(void){
+arcana::virgil::ThreadSafeLockFreeQueue<T>::~ThreadSafeLockFreeQueue(void){
   this->invalidate();
 
   return ;

@@ -21,11 +21,11 @@
 
 #include "ThreadSafeQueue.hpp"
 
-namespace MARC {
+namespace arcana::virgil {
 
   template <typename T>
   class ThreadSafeMutexQueue final : public ThreadSafeQueue<T> {
-    using Base = MARC::ThreadSafeQueue<T>;
+    using Base = arcana::virgil::ThreadSafeQueue<T>;
 
     public:
 
@@ -120,13 +120,13 @@ namespace MARC {
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueue<T>::ThreadSafeMutexQueue(){
+arcana::virgil::ThreadSafeMutexQueue<T>::ThreadSafeMutexQueue(){
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
+bool arcana::virgil::ThreadSafeMutexQueue<T>::tryPop (T& out){
   std::lock_guard<std::mutex> lock{m_mutex};
   if(Base::m_queue.empty() || !Base::m_valid){
     return false;
@@ -138,7 +138,7 @@ bool MARC::ThreadSafeMutexQueue<T>::tryPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
+bool arcana::virgil::ThreadSafeMutexQueue<T>::waitPop (T& out){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -175,7 +175,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
+bool arcana::virgil::ThreadSafeMutexQueue<T>::waitPop (void){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   /*
@@ -220,7 +220,7 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPop (void){
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::push (T value){
+void arcana::virgil::ThreadSafeMutexQueue<T>::push (T value){
   std::lock_guard<std::mutex> lock{m_mutex};
   internal_pushAndNotify(value);
 
@@ -228,7 +228,7 @@ void MARC::ThreadSafeMutexQueue<T>::push (T value){
 }
  
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
+bool arcana::virgil::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
   std::unique_lock<std::mutex> lock{m_mutex};
 
   full_condition.wait(lock, 
@@ -252,21 +252,21 @@ bool MARC::ThreadSafeMutexQueue<T>::waitPush (T value, int64_t maxSize){
 }
 
 template <typename T>
-bool MARC::ThreadSafeMutexQueue<T>::empty (void) const {
+bool arcana::virgil::ThreadSafeMutexQueue<T>::empty (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.empty();
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeMutexQueue<T>::size (void) const {
+int64_t arcana::virgil::ThreadSafeMutexQueue<T>::size (void) const {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   return Base::m_queue.size();
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::clear (void) {
+void arcana::virgil::ThreadSafeMutexQueue<T>::clear (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   while(!Base::m_queue.empty()) {
@@ -282,7 +282,7 @@ void MARC::ThreadSafeMutexQueue<T>::clear (void) {
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
+void arcana::virgil::ThreadSafeMutexQueue<T>::invalidate (void) {
   std::lock_guard<std::mutex> lock{m_mutex};
 
   /*
@@ -307,14 +307,14 @@ void MARC::ThreadSafeMutexQueue<T>::invalidate (void) {
 }
 
 template <typename T>
-MARC::ThreadSafeMutexQueue<T>::~ThreadSafeMutexQueue(void){
+arcana::virgil::ThreadSafeMutexQueue<T>::~ThreadSafeMutexQueue(void){
   this->invalidate();
 
   return ;
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
+void arcana::virgil::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
 
   /*
    * Push the value to the queue.
@@ -330,7 +330,7 @@ void MARC::ThreadSafeMutexQueue<T>::internal_pushAndNotify (T& value){
 }
 
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
+void arcana::virgil::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
 
   /*
    * Pop the top element from the queue.
@@ -346,7 +346,7 @@ void MARC::ThreadSafeMutexQueue<T>::internal_popAndNotify (T& out){
 }
       
 template <typename T>
-void MARC::ThreadSafeMutexQueue<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
+void arcana::virgil::ThreadSafeMutexQueue<T>::internal_waitWhileEmpty (std::unique_lock<std::mutex> &lock){
   this->empty_condition.wait(lock, 
     [this]()
     {

@@ -21,7 +21,7 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool(threads);
+  arcana::virgil::ThreadPool pool(threads);
 
   /*
    * Submit jobs.

@@ -26,11 +26,11 @@
 
 #include <ThreadSafeQueue.hpp>
 
-namespace MARC {
+namespace arcana::virgil {
 
   template <typename T>
   class ThreadSafeSpinLockQueue final : public ThreadSafeQueue<T> {
-    using Base = MARC::ThreadSafeQueue<T>;
+    using Base = arcana::virgil::ThreadSafeQueue<T>;
 
     public:
 
@@ -102,14 +102,14 @@ namespace MARC {
 }
 
 template <typename T>
-MARC::ThreadSafeSpinLockQueue<T>::ThreadSafeSpinLockQueue(){
+arcana::virgil::ThreadSafeSpinLockQueue<T>::ThreadSafeSpinLockQueue(){
   pthread_spin_init(&this->spinLock, 0);
 
   return ;
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
+bool arcana::virgil::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
   pthread_spin_lock(&this->spinLock);
   if(Base::m_queue.empty() || !Base::m_valid){
     pthread_spin_unlock(&this->spinLock);
@@ -123,7 +123,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::tryPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
+bool arcana::virgil::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
 
   /*
    * Check if the queue is not valid anymore.
@@ -155,7 +155,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (T& out){
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
+bool arcana::virgil::ThreadSafeSpinLockQueue<T>::waitPop (void){
 
   /*
    * Check if the queue is not valid anymore.
@@ -190,7 +190,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPop (void){
 }
 
 template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::push (T value){
+void arcana::virgil::ThreadSafeSpinLockQueue<T>::push (T value){
   pthread_spin_lock(&this->spinLock);
   this->internal_push(value);
   pthread_spin_unlock(&this->spinLock);
@@ -199,7 +199,7 @@ void MARC::ThreadSafeSpinLockQueue<T>::push (T value){
 }
  
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::waitPush (T value, int64_t maxSize){
+bool arcana::virgil::ThreadSafeSpinLockQueue<T>::waitPush (T value, int64_t maxSize){
   pthread_spin_lock(&this->spinLock);
 
   while (Base::m_queue.size() >= maxSize && Base::m_valid){
@@ -223,7 +223,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::waitPush (T value, int64_t maxSize){
 }
 
 template <typename T>
-bool MARC::ThreadSafeSpinLockQueue<T>::empty (void) const {
+bool arcana::virgil::ThreadSafeSpinLockQueue<T>::empty (void) const {
   pthread_spin_lock(&this->spinLock);
   auto empty = Base::m_queue.empty();
   pthread_spin_unlock(&this->spinLock);
@@ -232,7 +232,7 @@ bool MARC::ThreadSafeSpinLockQueue<T>::empty (void) const {
 }
 
 template <typename T>
-int64_t MARC::ThreadSafeSpinLockQueue<T>::size (void) const {
+int64_t arcana::virgil::ThreadSafeSpinLockQueue<T>::size (void) const {
   pthread_spin_lock(&this->spinLock);
   auto s = Base::m_queue.size();
   pthread_spin_unlock(&this->spinLock);
@@ -241,7 +241,7 @@ int64_t MARC::ThreadSafeSpinLockQueue<T>::size (void) const {
 }
 
 template <typename T>
-void MARC::ThreadSafeSpinLockQueue<T>::clear (void) {
+void arcana::virgil::ThreadSafeSpinLockQueue<T>::clear (void) {
   pthread_spin_lock(&this->spinLock);
   while(!Base::m_queue.empty()) {
     Base::m_queue.pop();
@@ -252,7 +252,7 @@ void MARC::ThreadSafeSpinLockQueue<T>::clear (void) {
 }
 
 template <typename T>
-MARC::ThreadSafeSpinLockQueue<T>::~ThreadSafeSpinLockQueue(void){
+arcana::virgil::ThreadSafeSpinLockQueue<T>::~ThreadSafeSpinLockQueue(void){
   this->invalidate();
 
   return ;

@@ -17,7 +17,7 @@
 #include <pthread.h>
 #include <iostream>
 
-namespace MARC {
+namespace arcana::virgil {
 
   /*
    * Thread task interface.
@@ -96,7 +96,7 @@ namespace MARC {
 }
 
 template <typename Func>
-MARC::ThreadTask<Func>::ThreadTask (Func&& func)
+arcana::virgil::ThreadTask<Func>::ThreadTask (Func&& func)
   :
   m_func{std::move(func)},
   useAffinity{false}
@@ -105,7 +105,7 @@ MARC::ThreadTask<Func>::ThreadTask (Func&& func)
 }
 
 template <typename Func>
-MARC::ThreadTask<Func>::ThreadTask (cpu_set_t coresToUse, Func&& func)
+arcana::virgil::ThreadTask<Func>::ThreadTask (cpu_set_t coresToUse, Func&& func)
   :
   m_func{std::move(func)},
   cores{coresToUse},
@@ -115,7 +115,7 @@ MARC::ThreadTask<Func>::ThreadTask (cpu_set_t coresToUse, Func&& func)
 }
 
 template <typename Func>
-void MARC::ThreadTask<Func>::execute (void){
+void arcana::virgil::ThreadTask<Func>::execute (void){
 
   /*
    * Check if we have been asked to set the affinity of the thread that will run the task.

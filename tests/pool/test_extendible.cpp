@@ -20,12 +20,12 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPool pool(1, true);
+  arcana::virgil::ThreadPool pool(1, true);
 
   /*
    * Submit jobs.
    */
-  std::vector<MARC::TaskFuture<double>> results;
+  std::vector<arcana::virgil::TaskFuture<double>> results;
   for (auto i=0; i < tasks; i++){
     results.push_back(pool.submit(myF, iters));
   }

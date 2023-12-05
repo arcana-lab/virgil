@@ -22,7 +22,7 @@ int main (int argc, char *argv[]){
   /*
    * Create a thread pool.
    */
-  MARC::ThreadPoolForCSingleQueue pool{false, threads};
+  arcana::virgil::ThreadPoolForCSingleQueue pool{false, threads};
 
   /*
    * Create the locks
