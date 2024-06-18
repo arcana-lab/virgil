@@ -1,7 +1,20 @@
 # VIRGIL: Very sImple thRead pool desiGned with the easy Integration goaL in mind
 
+[![Active Development](https://img.shields.io/badge/Maintenance%20Level-Actively%20Developed-brightgreen.svg)](https://gist.github.com/cheerfulstoic/d107229326a01ff0f333a1d3476e068d)
+
+<p><img src="doc/figs/arcana_logo.jpg" align="right" width="350" height="120"/></p>
+
+- [Description](#description)
+- [Motivation](#motivation)
+- [Testing VIRGIL](#testing-virgil)
+- [Credits](#credits)
+- [License](#license)
+- [Logo](#logo)
+
+## Description
 This is a header-only C++ library that implements a simple thread pool using the modern C++ language.
 VIRGIL's design aims for an easy integration with other C++ code.
+
 
 ## Motivation
 
@@ -11,10 +24,10 @@ This motivated us to design VIRGIL.
 We hope it will be useful for other people as well.
 
 
-## Logo
-![alt text](https://github.com/scampanoni/threadpool/blob/master/figs/Virgil.jpg)
-
-Virgil is the name of our cat we have taken home from the [Gifford cat shelter](http://www.giffordcatshelter.org) just before moving to Chicago from Boston.
+## Testing VIRGIL
+There are two set of tests: the ones for testing the whole thread pool, and the ones that only tests queues that are within VIRGIL.
+For the former, go to tests/pool and run `make`.
+For the latter, go to tests/queue and run `make`.
 
 
 ## Credits
@@ -22,12 +35,11 @@ VIRGIL has been inspired by several projects.
 The main ones are [A Platform-Independent Thread Pool Using C++14](http://roar11.com/2016/01/a-platform-independent-thread-pool-using-c14/) and [A Fast Lock-Free Queue for C++](http://moodycamel.com/blog/2013/a-fast-lock-free-queue-for-c++).
 
 
-## Running the tests
-
-There are two set of tests: the ones for testing the whole thread pool, and the ones that only tests queues that are within VIRGIL.
-For the former, go to tests/pool and run `make`.
-For the latter, go to tests/queue and run `make`.
-
-
 ## License
 MIT License
+
+
+## Logo
+![alt text](https://github.com/scampanoni/threadpool/blob/master/doc/figs/Virgil.jpg)
+
+Virgil is the name of our cat [my wife and I](https://users.cs.northwestern.edu/~simonec) have taken home from the [Gifford cat shelter](http://www.giffordcatshelter.org) just before moving to Chicago from Boston.
