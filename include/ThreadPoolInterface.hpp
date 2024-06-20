@@ -183,6 +183,18 @@ void arcana::virgil::ThreadPoolInterface::newThreads (std::uint32_t newThreadsTo
      * Create a new thread.
      */
     this->m_threads.emplace_back(&this->workerFunctionTrampoline, this, flag, i);
+    auto &thread = this->m_threads.back();
+    
+    // Create a cpu_set_t object representing a set of CPUs. Clear it and mark
+    // only CPU i as set.
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    CPU_SET(i+1, &cpuset);
+    int rc = pthread_setaffinity_np(thread.native_handle(),
+                                    sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+      std::cerr << "Error calling pthread_setaffinity_np: " << rc << "\n";
+    }
   }
 
   return ;
